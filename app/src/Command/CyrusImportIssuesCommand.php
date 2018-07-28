@@ -3,6 +3,7 @@
 namespace App\Command;
 
 use App\Atlassian\Jira\JiraApiClient;
+use JiraRestApi\Project\ProjectService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -22,7 +23,7 @@ class CyrusImportIssuesCommand extends Command
         $this
             ->setDescription('Add a short description for your command')
             ->addOption('github-repo', null, InputOption::VALUE_REQUIRED, 'The Github Repository to import from.')
-            ->addOption('jira-project', null, InputOption::VALUE_REQUIRED, 'The JIRA Project to import into.')
+            ->addOption('jira-project-key', null, InputOption::VALUE_REQUIRED, 'The JIRA Project to import into.')
             ->addOption('state', null, InputOption::VALUE_NONE, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
         ;
     }
@@ -37,16 +38,14 @@ class CyrusImportIssuesCommand extends Command
             exit;
         }
 
-        $project = $input->getOption('jira-project');
-        if(!$project) {
+        $projectKey = $input->getOption('jira-project-key');
+        if(!$projectKey) {
             $output->writeln('<error>You must specify a JIRA Project!</error>');
             exit;
         }
 
-        $jira = new JiraApiClient();
-        $project = $jira->getProjectByKey($project);
-
-        die(var_dump($project));
+        $p = new ProjectService();
+        $project = $p->get($projectKey);
 
         //if `state` is not passed, then default to `all`
         $state = $input->getOption('state') ? $input->getOption('state') : 'all';
