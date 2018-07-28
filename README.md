@@ -4,10 +4,8 @@ Migrate Github to JIRA for all the things..
 
 ## Requirements
 
-* PHP 7.x
-* Composer
-
-### Install Composer
+* [PHP 7.1](https://coolestguidesontheplanet.com/upgrade-php-on-osx/)
+* [Composer](https://getcomposer.org/doc/00-intro.md)
 
 ## Usage
 
@@ -18,4 +16,4 @@ Migrate Github to JIRA for all the things..
 | Tables        | Are           | Cool  |
 | ------------- |:-------------:| :-----|
 | state         | string | Indicates the state of the issues to return. Can be either `open`, `closed`, or `all`. Default: `open` |
-    
+
