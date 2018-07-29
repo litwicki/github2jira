@@ -130,10 +130,19 @@ class CyrusImportIssuesCommand extends Command
 
     }
 
-    public function findIssueInJira(array $item = array(), Project $project)
+    /**
+     * Find an Issue in Jira by it's `github_number`
+     *
+     * @param int $githubNumber
+     * @param Project $project
+     * @return bool|\JiraRestApi\Issue\Issue
+     * @throws JiraException
+     * @throws \JsonMapper_Exception
+     */
+    public function findIssueInJira(int $githubNumber, Project $project)
     {
         $issueService = new IssueService();
-        $jql = sprintf('github_number = %s', $item['number']);
+        $jql = sprintf('github_number = %s', $githubNumber);
         $result = $issueService->search($jql);
         return $result->total ? $result->getIssue(0) : false;
     }
