@@ -2,7 +2,9 @@
 
 namespace App\Command;
 
+use Github\Api\Issue;
 use Github\Client as GithubClient;
+use JiraRestApi\Project\Project;
 use JiraRestApi\Project\ProjectService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -11,6 +13,10 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Dotenv\Dotenv;
+
+use JiraRestApi\Issue\IssueService;
+use JiraRestApi\Issue\IssueField;
+use JiraRestApi\JiraException;
 
 class CyrusImportIssuesCommand extends Command
 {
@@ -22,13 +28,16 @@ class CyrusImportIssuesCommand extends Command
             ->setDescription('Add a short description for your command')
             ->addOption('github-repo', null, InputOption::VALUE_REQUIRED, 'The Github Repository to import from.')
             ->addOption('jira-project-key', null, InputOption::VALUE_REQUIRED, 'The JIRA Project to import into.')
-            ->addOption('state', null, InputOption::VALUE_NONE, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
+            ->addOption('state', null, InputOption::VALUE_OPTIONAL, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
+            ->addOption('per-page', null, InputOption::VALUE_OPTIONAL, 'Number of records to process per search/request.')
+            ->addOption('debug', null, InputOption::VALUE_NONE, 'Debug mode')
         ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $io = new SymfonyStyle($input, $output);
+        $pageSize = $input->getOption('per-page') ? $input->getOption('per-page') : getEnv('PAGE_SIZE');
 
         $githubRepo = $input->getOption('github-repo');
         if(!$githubRepo) {
@@ -43,67 +52,89 @@ class CyrusImportIssuesCommand extends Command
         }
 
         $p = new ProjectService();
-        $project = $p->get($projectKey);
+        $jiraProject = $p->get($projectKey);
 
-        //if `state` is not passed, then default to `all`
+        //if `state` is not passed, default to `all`
         $state = $input->getOption('state') ? $input->getOption('state') : 'all';
 
         $github = new GithubClient();
-        $issues = $github->api('issue')->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, array('state' => $state));
+        //@TODO: make the autowiring for this work with Symfony4
+        $github->authenticate(getEnv('GITHUB_USERNAME'), null, GitHubClient::AUTH_HTTP_TOKEN);
 
-        die(var_dump($issues));
+        $q = sprintf('repo:%s/%s', getEnv('GITHUB_ORGANIZATION'), $githubRepo);
+        $search = $github->api('search')->issues($q);
+        $total = $search['total_count'];
+        $pages = round($total / $pageSize);
+
+        for($i=0;$i<$pages;$i++) {
+
+            $issues = $github->api('issue')->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, [
+                'state' => $state,
+                'page' => $i+1,
+                'per_page' => $pageSize,
+            ]);
+
+            try {
+                $this->importIssuesToJira($issues, $jiraProject);
+            }
+            catch(\Exception $e) {
+                $output->writeln(sprintf('<error>%s</error>', $e->getMessage()));
+                exit;
+            }
+
+        }
 
     }
 
-    /**
-     * Parse a Github Issue to import into JIRA
-     *
-     * @param array $data
-     * @return array
-     */
-    public function parseIssue(array $data = array())
+    public function importIssuesToJira(array $items = array(), Project $jiraProject)
     {
-        /**
-         * Manually set vars here so we can parse and tweak 
-         * as needed and simplify the downstream impact..
-         */
-        $url = $data['url'];
-        $id = $data['id'];
-        $node_id = $data['node_id'];
-        $number = $data['number'];
-        $summary = $data['title'];
-        $description = $data['body'];
+        foreach($items as $item) {
 
-        $labels = array();
-        if(!empty($data['labels'])) {
-            foreach($data['labels'] as $label) {
-                $labels[] = $label['name'];
+            /**
+             * Check if this Issue exists already in JIRA
+             * and if it does, then we'll update instead of creating
+             * a new duplicate. Alright alright alriiiight!
+             */
+
+            $issue = $this->findIssueInJira($item, $jiraProject);
+            if($issue) {
+                die(var_dump($issue));
             }
+
+            $labels = array();
+            if (!empty($item['labels'])) {
+                foreach ($item['labels'] as $label) {
+                    $labels[] = $label['name'];
+                }
+            }
+
+            $issueField = new IssueField();
+
+            $issueField->setProjectKey($jiraProject->key)
+                ->setSummary($item['title'])
+                //->setAssigneeName($item['user']['login'])
+                ->setAssigneeToDefault()
+                ->setPriorityName('Medium')
+                ->setIssueType('Story')
+                ->setDescription($item['body'])
+                ->addCustomField('github_number', $item['number']);
+
+            $issueService = new IssueService();
+
+            $issue = $issueService->create($issueField);
+
+
+            die(var_dump($issue));
+
         }
 
-        $state = $data['state'];
+    }
 
-        /**
-         * Build the JIRA issue.
-         */
-        $issue = [
-
-            'update' => [],
-            'fields' => [
-                'project' => [
-                    'id' => '',
-                ],
-                'summary' => $summary,
-                'issuetype' => [
-                    'id' => '',
-                ],
-                'labels' => $labels,
-                'description' => $description,
-
-            ],
-
-        ];
-
-        return $issue;
+    public function findIssueInJira(array $item = array(), Project $project)
+    {
+        $issueService = new IssueService();
+        $jql = sprintf('github_number = %s', $item['number']);
+        $result = $issueService->search($jql);
+        return $result->total ? $result->getIssue(0) : false;
     }
 }
