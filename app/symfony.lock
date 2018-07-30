@@ -5,6 +5,12 @@
     "doctrine/inflector": {
         "version": "v1.3.0"
     },
+    "doctrine/lexer": {
+        "version": "v1.0.1"
+    },
+    "egulias/email-validator": {
+        "version": "2.1.4"
+    },
     "guzzlehttp/guzzle": {
         "version": "6.3.3"
     },
@@ -73,6 +79,9 @@
     },
     "psr/simple-cache": {
         "version": "1.0.1"
+    },
+    "swiftmailer/swiftmailer": {
+        "version": "v6.1.2"
     },
     "symfony/cache": {
         "version": "v4.1.2"
@@ -156,6 +165,15 @@
             "branch": "master",
             "version": "4.0",
             "ref": "cda8b550123383d25827705d05a42acf6819fe4e"
+        }
+    },
+    "symfony/swiftmailer-bundle": {
+        "version": "2.5",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "master",
+            "version": "2.5",
+            "ref": "3db029c03e452b4a23f7fc45cec7c922c2247eb8"
         }
     },
     "symfony/yaml": {

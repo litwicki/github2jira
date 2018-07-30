@@ -1,20 +1,29 @@
 <?php namespace App\Common;
 
-use GuzzleHttp\Psr7\Response;
+use JiraRestApi\User\UserService;
 
 class Github2JiraHelpers
 {
     /**
-     * @param Response $response
-     * @return array
+     * Find a User in JIRA.
+     *
+     * @param string|null $username
+     * @return bool
+     * @throws \JiraRestApi\JiraException
+     * @throws \JsonMapper_Exception
      */
-    public static function responseToArray(Response $response)
+    public static function findJiraUserByUsername(string $username = null)
     {
-        $json = $response->getBody();
-        $response = json_decode($json, TRUE);
-        //force an array structure
-        $response = !is_array($response) ? array($response) : $response;
+        $us = new UserService();
 
-        return $response;
+        // get the user info.
+        $users = $us->findUsers(['username' => $username]);
+
+        if(!empty($users)) {
+            $first = reset($users);
+            return ($first->name == $username);
+        }
+
+        return false;
     }
 }
