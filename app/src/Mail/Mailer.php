@@ -2,14 +2,20 @@
 
 class Mailer
 {
+    private $mailer;
+
+    public function __construct(\Swift_Mailer $mailer)
+    {
+        $this->mailer = $mailer;
+    }
+
     /**
      * Swiftmailer Wrapper to send an Email.
      *
-     * @param \Swift_Mailer $mailer
      * @param string|null $template
      * @param array $params
      */
-    public function send(\Swift_Mailer $mailer, string $template = 'message', array $params = array())
+    public function send(array $params = array(), string $template = 'message')
     {
         $htmlTemplate = sprintf('emails/%s.html.twig', $template);
         $txtTemplate = sprintf('emails/%s.txt.twig', $template);
@@ -37,6 +43,6 @@ class Mailer
             )
         ;
 
-        $mailer->send($message);
+        $this->mailer->send($message);
     }
 }

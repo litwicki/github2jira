@@ -6,6 +6,8 @@ use Github\Api\Issue;
 use Github\Client as GithubClient;
 use JiraRestApi\Project\Project;
 use JiraRestApi\Project\ProjectService;
+use JiraRestApi\User\UserService;
+use JiraRestApi\User\UserPropertiesService;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -61,6 +63,8 @@ class CyrusImportIssuesCommand extends Command
         //@TODO: make the autowiring for this work with Symfony4
         $github->authenticate(getEnv('GITHUB_USERNAME'), null, GitHubClient::AUTH_HTTP_TOKEN);
 
+        $svc = new UserService();
+
         $q = sprintf('repo:%s/%s', getEnv('GITHUB_ORGANIZATION'), $githubRepo);
         $search = $github->api('search')->issues($q);
         $total = $search['total_count'];
@@ -96,7 +100,7 @@ class CyrusImportIssuesCommand extends Command
              * a new duplicate. Alright alright alriiiight!
              */
 
-            $issue = $this->findIssueInJira($item, $jiraProject);
+            $issue = $this->findIssueInJira($item['number'], $jiraProject);
             if($issue) {
                 die(var_dump($issue));
             }
@@ -112,12 +116,11 @@ class CyrusImportIssuesCommand extends Command
 
             $issueField->setProjectKey($jiraProject->key)
                 ->setSummary($item['title'])
-                //->setAssigneeName($item['user']['login'])
-                ->setAssigneeToDefault()
+                ->setAssigneeName($item['user']['login'])
                 ->setPriorityName('Medium')
                 ->setIssueType('Story')
                 ->setDescription($item['body'])
-                ->addCustomField('github_number', $item['number']);
+                ->addCustomField('customfield_10025', strval($item['number']));
 
             $issueService = new IssueService();
 
@@ -142,7 +145,7 @@ class CyrusImportIssuesCommand extends Command
     public function findIssueInJira(int $githubNumber, Project $project)
     {
         $issueService = new IssueService();
-        $jql = sprintf('github_number = %s', $githubNumber);
+        $jql = sprintf('github_number ~ `%s`', $githubNumber);
         $result = $issueService->search($jql);
         return $result->total ? $result->getIssue(0) : false;
     }
