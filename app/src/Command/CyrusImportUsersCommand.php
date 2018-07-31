@@ -53,7 +53,7 @@ class CyrusImportUsersCommand extends Command
         //@TODO: make the autowiring for this work with Symfony4
         $github->authenticate(getEnv('GITHUB_USERNAME'), null, GitHubClient::AUTH_HTTP_TOKEN);
 
-        $users = $github->api('user')->all(getEnv('GITHUB_ORGANIZATION'));
+        $users = $github->api('members')->all(getEnv('GITHUB_ORGANIZATION'));
 
         $total = count($users);
 
