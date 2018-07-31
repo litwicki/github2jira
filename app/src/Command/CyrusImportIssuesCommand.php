@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\Common\Github2JiraHelpers;
 use Github\Api\Issue;
 use Github\Client as GithubClient;
 use JiraRestApi\Project\Project;
@@ -15,6 +16,9 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Dotenv\Dotenv;
+use App\Mail\Mailer;
+
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 use JiraRestApi\Issue\IssueService;
 use JiraRestApi\Issue\IssueField;
@@ -22,7 +26,24 @@ use JiraRestApi\JiraException;
 
 class CyrusImportIssuesCommand extends Command
 {
-    protected static $defaultName = 'cyrus:import:issues';
+    protected static $defaultName = 'github2jira:import:issues';
+
+    protected $params;
+
+    protected $helpers;
+
+    /**
+     * @var App\Mail\Mailer
+     */
+    protected $mailer;
+
+    public function __construct(Mailer $mailer, ParameterBagInterface $params, Github2JiraHelpers $helpers)
+    {
+        parent::__construct();
+        $this->params = $params;
+        $this->helpers = $helpers;
+        $this->mailer = $mailer;
+    }
 
     protected function configure()
     {
@@ -30,6 +51,7 @@ class CyrusImportIssuesCommand extends Command
             ->setDescription('Add a short description for your command')
             ->addOption('github-repo', null, InputOption::VALUE_REQUIRED, 'The Github Repository to import from.')
             ->addOption('jira-project-key', null, InputOption::VALUE_REQUIRED, 'The JIRA Project to import into.')
+            ->addOption('send-email', null, InputOption::VALUE_NONE, 'Send an email recapping everything.')
             ->addOption('state', null, InputOption::VALUE_OPTIONAL, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
             ->addOption('per-page', null, InputOption::VALUE_OPTIONAL, 'Number of records to process per search/request.')
             ->addOption('debug', null, InputOption::VALUE_NONE, 'Debug mode')
@@ -63,8 +85,6 @@ class CyrusImportIssuesCommand extends Command
         //@TODO: make the autowiring for this work with Symfony4
         $github->authenticate(getEnv('GITHUB_USERNAME'), null, GitHubClient::AUTH_HTTP_TOKEN);
 
-        $svc = new UserService();
-
         $q = sprintf('repo:%s/%s', getEnv('GITHUB_ORGANIZATION'), $githubRepo);
         $search = $github->api('search')->issues($q);
         $total = $search['total_count'];
@@ -79,7 +99,7 @@ class CyrusImportIssuesCommand extends Command
             ]);
 
             try {
-                $this->importIssuesToJira($issues, $jiraProject);
+                $this->importIssuesToJira($issues, $jiraProject, $output);
             }
             catch(\Exception $e) {
                 $output->writeln(sprintf('<error>%s</error>', $e->getMessage()));
@@ -88,21 +108,31 @@ class CyrusImportIssuesCommand extends Command
 
         }
 
+        /**
+         * Send an email recapping what was done.
+         */
+        if($input->getOption('send-email')) {
+            $this->mailer->send([
+                'recipients' => [getEnv('APP_USER_EMAIL')],
+                'subject' => 'Cyrus User Import (Jira)',
+                'params' => [
+                    'new' => $newUsers,
+                    'old' => $oldUsers
+                ]
+            ], 'import-users');
+        }
+
     }
 
-    public function importIssuesToJira(array $items = array(), Project $jiraProject)
+    public function importIssuesToJira(array $items = array(), Project $jiraProject, OutputInterface $output)
     {
         foreach($items as $item) {
 
-            /**
-             * Check if this Issue exists already in JIRA
-             * and if it does, then we'll update instead of creating
-             * a new duplicate. Alright alright alriiiight!
-             */
-
             $issue = $this->findIssueInJira($item['number'], $jiraProject);
+
             if($issue) {
-                die(var_dump($issue));
+                $output->writeln(sprintf('<warn>Skipping Issue #%s, already imported.', $item['number']));
+                continue;
             }
 
             $labels = array();
@@ -116,18 +146,24 @@ class CyrusImportIssuesCommand extends Command
 
             $issueField->setProjectKey($jiraProject->key)
                 ->setSummary($item['title'])
-                ->setAssigneeName($item['user']['login'])
+                ->setAssigneeName($this->helpers->githubLoginToJiraUsername($item['user']['login']))
                 ->setPriorityName('Medium')
                 ->setIssueType('Story')
                 ->setDescription($item['body'])
-                ->addCustomField('customfield_10025', strval($item['number']));
+                ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_GITHUB_ID'), strval($item['number']))
+            ;
+
+            //attach the labels to this issue.
+            foreach($labels as $label) {
+                $label = str_replace(' ', '-', $label);
+                $issueField->addLabel($label);
+            }
 
             $issueService = new IssueService();
 
             $issue = $issueService->create($issueField);
 
-
-            die(var_dump($issue));
+            $output->writeln(sprintf('JIRA Issue %s imported.', $issue->key));
 
         }
 
@@ -145,7 +181,7 @@ class CyrusImportIssuesCommand extends Command
     public function findIssueInJira(int $githubNumber, Project $project)
     {
         $issueService = new IssueService();
-        $jql = sprintf('github_number ~ `%s`', $githubNumber);
+        $jql = sprintf('"Github Issue" ~ `%s`', $githubNumber);
         $result = $issueService->search($jql);
         return $result->total ? $result->getIssue(0) : false;
     }

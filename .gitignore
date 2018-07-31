@@ -1,5 +1,5 @@
 .idea
-data/*.json
+app/var/data/*.json
 
 ###> symfony/framework-bundle ###
 app/.env

@@ -12,6 +12,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use App\Mail\Mailer;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 /**
  * Class CyrusImportUsersCommand
@@ -23,16 +24,22 @@ use App\Mail\Mailer;
  */
 class CyrusImportUsersCommand extends Command
 {
-    protected static $defaultName = 'cyrus:import:users';
+    protected static $defaultName = 'github2jira:import:users';
+
+    protected $params;
+
+    protected $helpers;
 
     /**
      * @var App\Mail\Mailer
      */
     protected $mailer;
 
-    public function __construct(Mailer $mailer)
+    public function __construct(Mailer $mailer, ParameterBagInterface $params, Github2JiraHelpers $helpers)
     {
         parent::__construct();
+        $this->params = $params;
+        $this->helpers = $helpers;
         $this->mailer = $mailer;
     }
 
@@ -81,7 +88,7 @@ class CyrusImportUsersCommand extends Command
              * Only import (create) a User if they do not already exist,
              * so let's verify we cannot find them in Jira first.
              */
-            if(false === (Github2JiraHelpers::findJiraUserByUsername($username))) {
+            if(false === ($this->helpers->findJiraUserByUsername($username))) {
 
                 // create new user
                 try {

@@ -12,7 +12,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 class CyrusPurgeJiraUsersCommand extends Command
 {
-    protected static $defaultName = 'cyrus:purge:jira-users';
+    protected static $defaultName = 'github2jira:purge-jira-users';
 
     protected function configure()
     {
