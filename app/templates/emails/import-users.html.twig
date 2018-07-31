@@ -1,0 +1,12 @@
+<strong>New Users imported:</strong>
+<ol>
+{% for username in new %}
+    <li>{{ username }}</li>
+{% endfor %}
+</ol>
+<ol>
+<strong>User skipped because they already exist:</strong>
+{% for username in old %}
+    <li>{{ username }}</li>
+{% endfor %}
+</ol>

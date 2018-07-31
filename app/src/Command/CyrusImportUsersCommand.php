@@ -25,6 +25,9 @@ class CyrusImportUsersCommand extends Command
 {
     protected static $defaultName = 'cyrus:import:users';
 
+    /**
+     * @var App\Mail\Mailer
+     */
     protected $mailer;
 
     public function __construct(Mailer $mailer)
@@ -81,15 +84,20 @@ class CyrusImportUsersCommand extends Command
             if(false === (Github2JiraHelpers::findJiraUserByUsername($username))) {
 
                 // create new user
-                $user = $userService->create([
-                    'name'          => $username,
-                    'password'      => $username,
-                    'emailAddress'  => sprintf('%s@cyrusbio.com', $username),
-                    'displayName'   => $username,
-                    'notification'  => FALSE, # do we want to email the new user an invite or not?
-                ]);
-
-                $newUsers[] = sprintf('%s: %s', $user->name, $user->displayName);
+                try {
+                    $user = $userService->create([
+                        'name'          => $username,
+                        'password'      => $username,
+                        'emailAddress'  => sprintf('%s@cyrusbio.com', $username),
+                        'displayName'   => $username,
+                        'notification'  => FALSE, # do we want to email the new user an invite or not?
+                    ]);
+                    $newUsers[] = sprintf('%s: %s', $user->name, $user->displayName);
+                }
+                catch(\Exception $e) {
+                    $message = sprintf('<error>Username `%s` already exists!</error>', $username);
+                    $output->writeln($message);
+                }
 
             }
             else {
@@ -111,9 +119,11 @@ class CyrusImportUsersCommand extends Command
             $this->mailer->send([
                 'recipients' => [getEnv('APP_USER_EMAIL')],
                 'subject' => 'Cyrus User Import (Jira)',
-                'new' => $newUsers,
-                'old' => $oldUsers
-            ]);
+                'params' => [
+                    'new' => $newUsers,
+                    'old' => $oldUsers
+                ]
+            ], 'import-users');
         }
 
     }

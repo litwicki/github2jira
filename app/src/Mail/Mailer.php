@@ -1,12 +1,23 @@
 <?php namespace App\Mail;
 
+use Symfony\Component\Templating\PhpEngine;
+use Symfony\Component\Templating\TemplateNameParser;
+use Symfony\Component\Templating\Loader\FilesystemLoader;
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
+
 class Mailer
 {
-    private $mailer;
+    protected $mailer;
 
-    public function __construct(\Swift_Mailer $mailer)
+    protected $templatePath;
+
+    public function __construct(\Swift_Mailer $mailer, ParameterBagInterface $params)
     {
+        $this->params = $params;
+        $dir = $this->params->get('kernel.project_dir').'/templates/%name%';
+        $filesystemLoader = new FilesystemLoader($dir);
         $this->mailer = $mailer;
+        $this->templating = $templating = new PhpEngine(new TemplateNameParser(), $filesystemLoader);
     }
 
     /**
@@ -28,14 +39,14 @@ class Mailer
             ->setFrom($emailFrom)
             ->setTo($recipients)
             ->setBody(
-                $this->renderView(
+                $this->templating->render(
                     $htmlTemplate,
                     $params['params']
                 ),
                 'text/html'
             )
             ->addPart(
-                $this->renderView(
+                $this->templating->render(
                     $txtTemplate,
                     $params['params']
                 ),
