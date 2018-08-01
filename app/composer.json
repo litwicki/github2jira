@@ -18,7 +18,9 @@
         "symfony/maker-bundle": "^1.5",
         "symfony/swiftmailer-bundle": "^3.2",
         "symfony/templating": "^4.1",
-        "symfony/yaml": "^4.1"
+        "symfony/twig-bundle": "^4.1",
+        "symfony/yaml": "^4.1",
+        "twig/twig": "^2.0"
     },
     "require-dev": {
     },

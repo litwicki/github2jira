@@ -1,9 +1,11 @@
-{% if messages is not empty %}
-    {% for message in messages %}
-        - {{ message }}\n
-    {% endfor %}
-{% else %}
-    {{ message }}
-{% endif %}
+{% extends 'emails/base.txt.twig' %}
 
-{% include 'signature.html.twig' %}
+{% block body %}
+    {% if messages is defined and messages is not empty %}
+        {% for message in messages %}
+            - {{ message }}\n
+        {% endfor %}
+    {% else %}
+        {{ message }}
+    {% endif %}
+{% endblock %}

@@ -5,26 +5,40 @@ use Symfony\Component\Templating\TemplateNameParser;
 use Symfony\Component\Templating\Loader\FilesystemLoader;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
+use Twig\Environment as Twig;
+
 class Mailer
 {
+    /**
+     * @var \Swift_Mailer
+     */
     protected $mailer;
 
-    protected $templatePath;
+    /**
+     * @var \Symfony\Bridge\Twig\
+     */
+    protected $twig;
 
-    public function __construct(\Swift_Mailer $mailer, ParameterBagInterface $params)
+    /**
+     * @var ParameterBagInterface
+     */
+    protected $params;
+
+    public function __construct(\Swift_Mailer $mailer, ParameterBagInterface $params, Twig $twig)
     {
         $this->params = $params;
-        $dir = $this->params->get('kernel.project_dir').'/templates/%name%';
-        $filesystemLoader = new FilesystemLoader($dir);
         $this->mailer = $mailer;
-        $this->templating = $templating = new PhpEngine(new TemplateNameParser(), $filesystemLoader);
+        $this->twig = $twig;
     }
 
     /**
      * Swiftmailer Wrapper to send an Email.
      *
-     * @param string|null $template
      * @param array $params
+     * @param string|null $template
+     * @throws \Twig_Error_Loader
+     * @throws \Twig_Error_Runtime
+     * @throws \Twig_Error_Syntax
      */
     public function send(array $params = array(), string $template = 'default')
     {
@@ -39,14 +53,14 @@ class Mailer
             ->setFrom($emailFrom)
             ->setTo($recipients)
             ->setBody(
-                $this->templating->render(
+                $this->twig->render(
                     $htmlTemplate,
                     $params['params']
                 ),
                 'text/html'
             )
             ->addPart(
-                $this->templating->render(
+                $this->twig->render(
                     $txtTemplate,
                     $params['params']
                 ),
