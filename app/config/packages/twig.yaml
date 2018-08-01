@@ -1,0 +1,7 @@
+twig:
+    paths: ['%kernel.project_dir%/templates']
+    debug: '%kernel.debug%'
+    strict_variables: '%kernel.debug%'
+    globals:
+        EMAIL_SIGNATURE_TXT: '%env(EMAIL_SIGNATURE_TXT)%'
+        EMAIL_SIGNATURE_HTML: '%env(EMAIL_SIGNATURE_HTML)%'

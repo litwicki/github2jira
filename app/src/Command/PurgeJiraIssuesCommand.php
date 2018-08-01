@@ -49,17 +49,18 @@ class PurgeJiraIssuesCommand extends Command
 
         $messages = array();
 
-        $jira = new IssueService();
+        $svc = new IssueService();
 
         $jql = '"Github Issue" IS NOT EMPTY';
-        $issues = $jira->search($jql);
+        $jira = $svc->search($jql);
 
-        foreach($issues->getIssues() as $issue) {
+        $issueCount = count($jira->getIssues());
+
+        foreach($jira->getIssues() as $issue) {
 
             try {
-                $response = $jira->deleteIssue($issue->key);
-                die(var_dump($response));
-                $message = sprintf('%s: %s', $response['response'], $response['message']);
+                $response = $svc->deleteIssue($issue->key);
+                $message = sprintf('%s: %s', $issue->key, $issue->fields->summary);
             }
             catch(\Exception $e) {
                 $message = sprintf('<error>%s</error>', $e->getMessage());
@@ -70,16 +71,10 @@ class PurgeJiraIssuesCommand extends Command
 
         }
 
-        if(empty($messages)) {
-            $params = [
-                'message' => 'No Issues to Purge!'
-            ];
-        }
-        else {
-            $params = [
-                'messages' => $messages,
-            ];
-        }
+        $params = [
+            'messages' => $messages,
+            'body' => $issueCount ? sprintf('%s Jira Issues Purged.', $issueCount) : 'There were no issues to purge!',
+        ];
 
         /**
          * Send an email recapping what was done.

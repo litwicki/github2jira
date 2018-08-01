@@ -1,6 +1,9 @@
 {% extends 'emails/base.txt.twig' %}
 
 {% block body %}
+
+    {{ body }}
+
     {% if messages is defined and messages is not empty %}
         {% for message in messages %}
             - {{ message }}\n
