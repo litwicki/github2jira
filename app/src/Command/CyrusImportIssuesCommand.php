@@ -61,6 +61,7 @@ class CyrusImportIssuesCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $io = new SymfonyStyle($input, $output);
+        $errors = $messages = $comments = array();
         $pageSize = $input->getOption('per-page') ? $input->getOption('per-page') : getEnv('PAGE_SIZE');
 
         $githubRepo = $input->getOption('github-repo');
@@ -99,10 +100,66 @@ class CyrusImportIssuesCommand extends Command
             ]);
 
             try {
-                $this->importIssuesToJira($issues, $jiraProject, $output);
+
+                foreach($issues as $item) {
+
+                    $issue = $this->helpers->findIssueInJira($item['number'], $jiraProject);
+
+                    if($issue) {
+                        $message = sprintf('<comment>Skipping Issue #%s, already imported.</comment>', $item['number']);
+                        $comments[] = $message;
+                        $output->writeln($message);
+                        continue;
+                    }
+
+                    $labels = array();
+                    if (!empty($item['labels'])) {
+                        foreach ($item['labels'] as $label) {
+                            $labels[] = $label['name'];
+                        }
+                    }
+
+                    $issueField = new IssueField();
+
+                    $user = $this->helpers->githubLoginToJiraUsername($item['user']['login']);
+
+                    if(!$user) {
+                        $message = sprintf('<error>User %s does not exist in Jira!</error>', $item['user']['login']);
+                        $comments[] = $message;
+                        $output->writeln($message);
+                        exit;
+                    }
+
+                    $issueField->setProjectKey($jiraProject->key)
+                        ->setSummary($item['title'])
+                        ->setAssigneeName($user->name)
+                        ->setPriorityName('Medium')
+                        ->setIssueType('Story')
+                        ->setDescription($item['body'])
+                        ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_GITHUB_ID'), strval($item['number']))
+                    ;
+
+                    //attach the labels to this issue.
+                    foreach($labels as $label) {
+                        $label = str_replace(' ', '-', $label);
+                        $issueField->addLabel($label);
+                    }
+
+                    $issueService = new IssueService();
+
+                    $issue = $issueService->create($issueField);
+
+                    $message = sprintf('JIRA Issue %s imported.', $issue->key);
+                    $messages[] = $message;
+                    $output->writeln($message);
+
+                }
+
             }
             catch(\Exception $e) {
-                $output->writeln(sprintf('<error>%s</error>', $e->getMessage()));
+                $message = sprintf('<error>%s</error>', $e->getMessage());
+                $errors[] = $message;
+                $output->writeln($message);
                 exit;
             }
 
@@ -124,65 +181,4 @@ class CyrusImportIssuesCommand extends Command
 
     }
 
-    public function importIssuesToJira(array $items = array(), Project $jiraProject, OutputInterface $output)
-    {
-        foreach($items as $item) {
-
-            $issue = $this->findIssueInJira($item['number'], $jiraProject);
-
-            if($issue) {
-                $output->writeln(sprintf('<warn>Skipping Issue #%s, already imported.', $item['number']));
-                continue;
-            }
-
-            $labels = array();
-            if (!empty($item['labels'])) {
-                foreach ($item['labels'] as $label) {
-                    $labels[] = $label['name'];
-                }
-            }
-
-            $issueField = new IssueField();
-
-            $issueField->setProjectKey($jiraProject->key)
-                ->setSummary($item['title'])
-                ->setAssigneeName($this->helpers->githubLoginToJiraUsername($item['user']['login']))
-                ->setPriorityName('Medium')
-                ->setIssueType('Story')
-                ->setDescription($item['body'])
-                ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_GITHUB_ID'), strval($item['number']))
-            ;
-
-            //attach the labels to this issue.
-            foreach($labels as $label) {
-                $label = str_replace(' ', '-', $label);
-                $issueField->addLabel($label);
-            }
-
-            $issueService = new IssueService();
-
-            $issue = $issueService->create($issueField);
-
-            $output->writeln(sprintf('JIRA Issue %s imported.', $issue->key));
-
-        }
-
-    }
-
-    /**
-     * Find an Issue in Jira by it's `github_number`
-     *
-     * @param int $githubNumber
-     * @param Project $project
-     * @return bool|\JiraRestApi\Issue\Issue
-     * @throws JiraException
-     * @throws \JsonMapper_Exception
-     */
-    public function findIssueInJira(int $githubNumber, Project $project)
-    {
-        $issueService = new IssueService();
-        $jql = sprintf('"Github Issue" ~ `%s`', $githubNumber);
-        $result = $issueService->search($jql);
-        return $result->total ? $result->getIssue(0) : false;
-    }
 }
