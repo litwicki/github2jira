@@ -26,7 +26,7 @@ class Mailer
      * @param string|null $template
      * @param array $params
      */
-    public function send(array $params = array(), string $template = 'message')
+    public function send(array $params = array(), string $template = 'default')
     {
         $htmlTemplate = sprintf('emails/%s.html.twig', $template);
         $txtTemplate = sprintf('emails/%s.txt.twig', $template);

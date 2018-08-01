@@ -1,3 +1,9 @@
-{{ message }}
+{% if messages is not empty %}
+    {% for message in messages %}
+        - {{ message }}\n
+    {% endfor %}
+{% else %}
+    {{ message }}
+{% endif %}
 
-{% include 'signature.txt.twig' %}
+{% include 'signature.html.twig' %}

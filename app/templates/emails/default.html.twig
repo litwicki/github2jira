@@ -1,2 +1,11 @@
-<p>{{ message }}</p>
+{% if messages is not empty %}
+    <ul>
+    {% for message in messages %}
+        <li>{{ message }}</li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>{{ message }}</p>
+{% endif %}
+
 {% include 'signature.html.twig' %}
