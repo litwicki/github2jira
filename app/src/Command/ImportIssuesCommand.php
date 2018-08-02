@@ -54,7 +54,7 @@ class ImportIssuesCommand extends Command
             ->setDescription('Add a short description for your command')
             ->addOption('github-repo', null, InputOption::VALUE_REQUIRED, 'The Github Repository to import from.')
             ->addOption('jira-project-key', null, InputOption::VALUE_REQUIRED, 'The JIRA Project to import into.')
-            ->addOption('with-update', null, InputOption::VALUE_NONE, 'Do you want to update existing JIRA issues?')
+            ->addOption('no-update', null, InputOption::VALUE_NONE, 'If you only want to import new records and bypass updating existing issues.')
             ->addOption('send-email', null, InputOption::VALUE_NONE, 'Send an email recapping everything.')
             ->addOption('state', null, InputOption::VALUE_OPTIONAL, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
             ->addOption('per-page', null, InputOption::VALUE_OPTIONAL, 'Number of records to process per search/request.')
@@ -67,10 +67,10 @@ class ImportIssuesCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $errors = $messages = $consoleComments = array();
-        $limit = $input->getOption('limit') ? true : false;
-        $withUpdate = $input->getOption('with-update') ? $input->getOption('with-update') : false;
+        $limit = $input->getOption('limit') ? $input->getOption('limit') : false;
+        $noUpdate = $input->getOption('no-update') ? true : false;
         $pageSize = $input->getOption('per-page') ? $input->getOption('per-page') : getEnv('PAGE_SIZE');
-        $pageSize = $limit ? $limit : $pageSize;
+        $pageSize = $limit > 0 ? $limit : $pageSize;
 
         $created = $updated = 0;
 
@@ -119,7 +119,6 @@ class ImportIssuesCommand extends Command
                      * Do not treat pull requests as Issues for JIRA
                      */
                     if(isset($item['pull_request'])) {
-                        $output->writeln('Skipping pull request');
                         continue;
                     }
 
@@ -143,6 +142,8 @@ class ImportIssuesCommand extends Command
                             ->setIssueType('Epic')
                             ->setDescription($body)
                             ->addLabel('github')
+                            ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_GITHUB_ISSUE'), getEnv('JIRA_HOST'))
+                            ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_EPIC_NAME'), $milestone['title'])
                         ;
 
                         if($epic instanceof JiraIssue) {
@@ -178,7 +179,7 @@ class ImportIssuesCommand extends Command
                         $message = sprintf('<error>User %s does not exist in Jira!</error>', $item['user']['login']);
                         $consoleComments[] = $message;
                         $output->writeln($message);
-                        exit;
+                        continue;
                     }
 
                     //create the Issue
@@ -212,14 +213,18 @@ class ImportIssuesCommand extends Command
                     $issue = $this->helpers->findIssueInJira($item['html_url'], $jiraProject);
 
                     if($issue instanceof JiraIssue) {
-                        if($withUpdate) {
+
+                        if(true === $noUpdate) {
+                            $message = sprintf('(Skipped) Updating JIRA Issue %s..', $issue->key);
+                        }
+                        else {
                             $issueService->update($issue->key, $issueField);
                             $message = sprintf('Updating JIRA Issue %s..', $issue->key);
                             //refresh the issue
                             $issue = $issueService->get($issue->key);
                             $updated++;
                         }
-                        $message = sprintf('(Skipped) Updating JIRA Issue %s..', $issue->key);
+
                     }
                     else {
                         $issue = $issueService->create($issueField);
@@ -231,33 +236,34 @@ class ImportIssuesCommand extends Command
                     $output->writeln($message);
 
                     /**
-                     * Do we need to set this Issue as "Done"
-                     */
-                    if($item['state'] == 'closed') {
-                        $transition = new Transition();
-                        $transition->setTransitionName('Done');
-                        $resolution = sprintf('(JiraBot) Resolving %s via REST API.', $issue->key);
-                        $transition->setCommentBody($resolution);
-                        $issueService = new IssueService();
-                        $issueService->transition($issue->key, $transition);
-                        $message = sprintf('Closing Issue %s', $issue->key);
-                        $output->writeln($message);
-                        $consoleComments[] = $message;
-                    }
-
-                    /**
                      * Now that we have the Issue, let's import the associated Comments
                      * @TODO: update comments if we're updating issue, for now just purge comments and resubmit them..
                      */
 
-                    $response = $issueService->getComments($issue->key);
-                    if($response->total && $withUpdate) {
-                        foreach($response->comments as $c) {
-                            $issueService->deleteComment($issue->key, $c->id);
-                        }
-                    }
+                    if(false === $noUpdate) {
 
-                    if(!$withUpdate) {
+                        /**
+                         * Do we need to set this Issue as "Done"
+                         */
+                        if($item['state'] == 'closed') {
+                            $transition = new Transition();
+                            $transition->setTransitionName('Done');
+                            $resolution = sprintf('(JiraBot) Resolving %s via REST API.', $issue->key);
+                            $transition->setCommentBody($resolution);
+                            $issueService = new IssueService();
+                            $issueService->transition($issue->key, $transition);
+                            $message = sprintf('Closing Issue %s', $issue->key);
+                            $output->writeln($message);
+                            $consoleComments[] = $message;
+                        }
+
+                        $response = $issueService->getComments($issue->key);
+                        if($response->total) {
+                            foreach($response->comments as $c) {
+                                $issueService->deleteComment($issue->key, $c->id);
+                            }
+                        }
+
                         $comments = $github->api('issue')->comments()->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number']);
                         foreach($comments as $comment) {
                             $c = new Comment();
@@ -265,6 +271,7 @@ class ImportIssuesCommand extends Command
                             $issueService = new IssueService();
                             $ret = $issueService->addComment($issue->key, $c);
                         }
+
                     }
 
                 }

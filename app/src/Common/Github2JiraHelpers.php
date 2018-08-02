@@ -120,7 +120,7 @@ class Github2JiraHelpers
      */
     public function findEpic(string $summary, string $projectKey)
     {
-        $jql = sprintf('project = "%s" and issuetype = Epic and summary ~ "Cyrus Angular"', $projectKey, $summary);
+        $jql = sprintf('project = "%s" and issuetype = Epic and summary ~ "%s"', $projectKey, $summary);
         $result = $this->issueService->search($jql);
         return $result->total ? $result->getIssue(0) : false;
     }
