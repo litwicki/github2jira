@@ -53,6 +53,7 @@ class ImportIssuesCommand extends Command
             ->setDescription('Add a short description for your command')
             ->addOption('github-repo', null, InputOption::VALUE_REQUIRED, 'The Github Repository to import from.')
             ->addOption('jira-project-key', null, InputOption::VALUE_REQUIRED, 'The JIRA Project to import into.')
+            ->addOption('with-update', null, InputOption::VALUE_NONE, 'Do you want to update existing JIRA issues?')
             ->addOption('send-email', null, InputOption::VALUE_NONE, 'Send an email recapping everything.')
             ->addOption('state', null, InputOption::VALUE_OPTIONAL, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
             ->addOption('per-page', null, InputOption::VALUE_OPTIONAL, 'Number of records to process per search/request.')
@@ -65,7 +66,8 @@ class ImportIssuesCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $errors = $messages = $consoleComments = array();
-        $limit = $input->getOption('limit') ? $input->getOption('limit') : false;
+        $limit = $input->getOption('limit') ? true : false;
+        $withUpdate = $input->getOption('with-update') ? $input->getOption('with-update') : false;
         $pageSize = $input->getOption('per-page') ? $input->getOption('per-page') : getEnv('PAGE_SIZE');
         $pageSize = $limit ? $limit : $pageSize;
 
@@ -131,6 +133,7 @@ class ImportIssuesCommand extends Command
                     if($milestone) {
 
                         $epic = $this->helpers->findEpic($milestone['title'], $projectKey);
+                        $body = isset($milestone['body']) ? $milestone['body'] : $milestone['title'];
 
                         $issueField = new IssueField();
                         $issueField->setProjectKey($jiraProject->key)
@@ -138,7 +141,7 @@ class ImportIssuesCommand extends Command
                             ->setAssigneeToUnassigned()
                             ->setPriorityName('Medium')
                             ->setIssueType('Epic')
-                            ->setDescription($milestone['body'])
+                            ->setDescription($body)
                             ->addLabel('github')
                             ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_GITHUB_ID'), "0")
                         ;
@@ -162,8 +165,6 @@ class ImportIssuesCommand extends Command
                     /**
                      * Now that we have an Epic, move on to processing the Issue explicitly.
                      */
-
-                    $issue = $this->helpers->findIssueInJira($item['number'], $jiraProject);
 
                     //the `user` is the creator of the issue
                     $user = $this->helpers->githubLoginToJiraUsername($item['user']['login']);
@@ -209,7 +210,9 @@ class ImportIssuesCommand extends Command
                         }
                     }
 
-                    if($issue instanceof JiraIssue) {
+                    $issue = $this->helpers->findIssueInJira($item['number'], $jiraProject);
+
+                    if($issue instanceof JiraIssue && $withUpdate) {
                         $issueService->update($issue->key, $issueField);
                         $message = sprintf('Updating JIRA Issue %s..', $issue->key);
                         //refresh the issue
@@ -229,19 +232,22 @@ class ImportIssuesCommand extends Command
                      * Now that we have the Issue, let's import the associated Comments
                      * @TODO: update comments if we're updating issue, for now just purge comments and resubmit them..
                      */
+
                     $response = $issueService->getComments($issue->key);
-                    if($response->total) {
+                    if($response->total && $withUpdate) {
                         foreach($response->comments as $c) {
                             $issueService->deleteComment($issue->key, $c->id);
                         }
                     }
 
-                    $comments = $github->api('issue')->comments()->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number']);
-                    foreach($comments as $comment) {
-                        $c = new Comment();
-                        $c->setBody($comment['body']);
-                        $issueService = new IssueService();
-                        $ret = $issueService->addComment($issue->key, $c);
+                    if(!$withUpdate) {
+                        $comments = $github->api('issue')->comments()->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number']);
+                        foreach($comments as $comment) {
+                            $c = new Comment();
+                            $c->setBody($comment['body']);
+                            $issueService = new IssueService();
+                            $ret = $issueService->addComment($issue->key, $c);
+                        }
                     }
 
                 }
