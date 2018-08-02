@@ -96,17 +96,17 @@ class Github2JiraHelpers
     }
 
     /**
-     * Find an Issue in Jira by it's `github_number`
+     * Find an Issue in Jira by it's `Github Issue` field
      *
-     * @param int $githubNumber
+     * @param string $githubUrl
      * @param Project $project
      * @return bool|\JiraRestApi\Issue\Issue
      * @throws JiraException
      * @throws \JsonMapper_Exception
      */
-    public function findIssueInJira(int $githubNumber, Project $project)
+    public function findIssueInJira(string $githubUrl, Project $project)
     {
-        $jql = sprintf('"Github Issue" ~ `%s`', $githubNumber);
+        $jql = sprintf('"Github Issue" ~ "%s"', $githubUrl);
         $result = $this->issueService->search($jql);
         return $result->total ? $result->getIssue(0) : false;
     }

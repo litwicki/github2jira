@@ -7,6 +7,7 @@ use Github\Api\Issue as GithubIssue;
 use JiraRestApi\Issue\Comment;
 use JiraRestApi\Issue\Issue as JiraIssue;
 use Github\Client as GithubClient;
+use JiraRestApi\Issue\Transition;
 use JiraRestApi\Project\Project;
 use JiraRestApi\Project\ProjectService;
 use JiraRestApi\User\UserService;
@@ -138,12 +139,10 @@ class ImportIssuesCommand extends Command
                         $issueField = new IssueField();
                         $issueField->setProjectKey($jiraProject->key)
                             ->setSummary($milestone['title'])
-                            ->setAssigneeToUnassigned()
                             ->setPriorityName('Medium')
                             ->setIssueType('Epic')
                             ->setDescription($body)
                             ->addLabel('github')
-                            ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_GITHUB_ID'), "0")
                         ;
 
                         if($epic instanceof JiraIssue) {
@@ -210,14 +209,17 @@ class ImportIssuesCommand extends Command
                         }
                     }
 
-                    $issue = $this->helpers->findIssueInJira($item['number'], $jiraProject);
+                    $issue = $this->helpers->findIssueInJira($item['html_url'], $jiraProject);
 
-                    if($issue instanceof JiraIssue && $withUpdate) {
-                        $issueService->update($issue->key, $issueField);
-                        $message = sprintf('Updating JIRA Issue %s..', $issue->key);
-                        //refresh the issue
-                        $issue = $issueService->get($issue->key);
-                        $updated++;
+                    if($issue instanceof JiraIssue) {
+                        if($withUpdate) {
+                            $issueService->update($issue->key, $issueField);
+                            $message = sprintf('Updating JIRA Issue %s..', $issue->key);
+                            //refresh the issue
+                            $issue = $issueService->get($issue->key);
+                            $updated++;
+                        }
+                        $message = sprintf('(Skipped) Updating JIRA Issue %s..', $issue->key);
                     }
                     else {
                         $issue = $issueService->create($issueField);
@@ -227,6 +229,21 @@ class ImportIssuesCommand extends Command
 
                     $messages[] = $message;
                     $output->writeln($message);
+
+                    /**
+                     * Do we need to set this Issue as "Done"
+                     */
+                    if($item['state'] == 'closed') {
+                        $transition = new Transition();
+                        $transition->setTransitionName('Done');
+                        $resolution = sprintf('(JiraBot) Resolving %s via REST API.', $issue->key);
+                        $transition->setCommentBody($resolution);
+                        $issueService = new IssueService();
+                        $issueService->transition($issue->key, $transition);
+                        $message = sprintf('Closing Issue %s', $issue->key);
+                        $output->writeln($message);
+                        $consoleComments[] = $message;
+                    }
 
                     /**
                      * Now that we have the Issue, let's import the associated Comments
