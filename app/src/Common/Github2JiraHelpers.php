@@ -6,18 +6,18 @@ use JiraRestApi\Project\Project;
 use JiraRestApi\User\UserService;
 use JiraRestApi\Issue\IssueService;
 use JiraRestApi\JiraException;
-use Symfony\Component\Templating\PhpEngine;
-use Symfony\Component\Templating\TemplateNameParser;
-use Symfony\Component\Templating\Loader\FilesystemLoader;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 class Github2JiraHelpers
 {
     protected $params;
 
+    protected $issueService;
+
     public function __construct(ParameterBagInterface $params)
     {
         $this->params = $params;
+        $this->issueService = new IssueService();
     }
 
     /**
@@ -52,8 +52,7 @@ class Github2JiraHelpers
     public function getGithubIssuesImportedToJira(Project $project)
     {
         $jql = sprintf('project = %s and "Github Issue" is NOT EMPTY ORDER BY created DESC', $project->key);
-        $svc = new IssueService();
-        $response = $svc->search($jql);
+        $response = $this->issueService->search($jql);
         $items = array();
         foreach($response->getIssues() as $issue) {
             $fields = $issue->fields->getCustomFields();
@@ -107,9 +106,22 @@ class Github2JiraHelpers
      */
     public function findIssueInJira(int $githubNumber, Project $project)
     {
-        $issueService = new IssueService();
         $jql = sprintf('"Github Issue" ~ `%s`', $githubNumber);
-        $result = $issueService->search($jql);
+        $result = $this->issueService->search($jql);
+        return $result->total ? $result->getIssue(0) : false;
+    }
+
+    /**
+     * @param string $summary
+     * @param string $projectKey
+     * @return bool|\JiraRestApi\Issue\Issue
+     * @throws JiraException
+     * @throws \JsonMapper_Exception
+     */
+    public function findEpic(string $summary, string $projectKey)
+    {
+        $jql = sprintf('project = "%s" and issuetype = Epic and summary ~ "Cyrus Angular"', $projectKey, $summary);
+        $result = $this->issueService->search($jql);
         return $result->total ? $result->getIssue(0) : false;
     }
 

@@ -1,12 +1,34 @@
-<strong>New Users imported:</strong>
-<ol>
-{% for username in new %}
-    <li>{{ username }}</li>
-{% endfor %}
-</ol>
-<ol>
-<strong>User skipped because they already exist:</strong>
-{% for username in old %}
-    <li>{{ username }}</li>
-{% endfor %}
-</ol>
+{% extends 'emails/base.html.twig' %}
+
+{% block body %}
+
+    <strong>{{ body }}</strong>
+
+    <h4>Messages</h4>
+    {% if messages is defined and messages is not empty %}
+        <ul>
+            {% for message in messages %}
+                <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <h4>Errors</h4>
+    {% if errors is defined and errors is not empty %}
+        <ul style="color: red;">
+            {% for error in errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <h4>Notices</h4>
+    {% if comments is defined and comments is not empty %}
+        <ul style="color: gray">
+            {% for comment in comments %}
+                <li>{{ comment }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+{% endblock %}
