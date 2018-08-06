@@ -26,7 +26,7 @@ To get started simply copy `.env.dist` to `.env` and customize with your options
 |`GITHUB_AUTH_METHOD`|[see client docs](https://github.com/KnpLabs/php-github-api/blob/master/doc/security.md)|http_token|
 |`GITHUB_USERNAME`|[see client docs](https://github.com/KnpLabs/php-github-api/blob/master/doc/security.md)|Oauth Token Value|
 |`GITHUB_SECRET`|[see client docs](https://github.com/KnpLabs/php-github-api/blob/master/doc/security.md)|Oauth Token Value|
-|`MAILER_URL`| |smtp://smtp.mailgun.org:25?encryptiontls&auth_mode=login&username=noreply@mg.example.com&password=p4ssw0rd!|
+|`MAILER_URL`| |Build your URL with the parameters from your service provider.|
 |`MAILER_FROM_ADDRESS`| |noreply@example.com|
 |`MAILER_DEFAULT_SUBJECT`| |"Github2Jira"|
 |`EMAIL_SIGNATURE_TXT`| |'text formatted string with no line breaks; can include `\n` for line breaks'|
