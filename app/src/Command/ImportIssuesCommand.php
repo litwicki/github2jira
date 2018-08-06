@@ -77,21 +77,23 @@ class ImportIssuesCommand extends Command
         $created = $updated = 0;
 
         $githubRepo = $input->getOption('github-repo');
-        if(!$githubRepo) {
-            $output->writeln('<error>You must specify a Github Repository!</error>');
-            exit;
-        }
-
         $projectKey = $input->getOption('jira-project-key');
-        if(!$projectKey) {
-            $output->writeln('<error>You must specify a JIRA Project!</error>');
+
+        if(!$githubRepo || !$projectKey) {
+            $output->writeln('You must specify a Github Repository (--github-repo) & Jira Project Key (--jira-project-key) to import issues.');
             exit;
         }
 
         $issueService = new IssueService();
 
         $p = new ProjectService();
-        $jiraProject = $p->get($projectKey);
+        try {
+            $jiraProject = $p->get($projectKey);
+        }
+        catch(\Exception $e) {
+            $output->writeln(sprintf('Could not find a Jira project with KEY %s.', $projectKey));
+            exit;
+        }
 
         //if `state` is not passed, default to `all`
         $state = $input->getOption('state') ? $input->getOption('state') : 'all';
