@@ -56,19 +56,21 @@ class ImportIssuesCommand extends Command
             ->addOption('jira-project-key', null, InputOption::VALUE_REQUIRED, 'The JIRA Project to import into.')
             ->addOption('no-update', null, InputOption::VALUE_NONE, 'If you only want to import new records and bypass updating existing issues.')
             ->addOption('send-email', null, InputOption::VALUE_NONE, 'Send an email recapping everything.')
+            ->addOption('allow-unassigned', null, InputOption::VALUE_NONE, 'If a User does not exist, set to Unassigned/Default.')
             ->addOption('state', null, InputOption::VALUE_OPTIONAL, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
             ->addOption('per-page', null, InputOption::VALUE_OPTIONAL, 'Number of records to process per search/request.')
             ->addOption('limit', null, InputOption::VALUE_OPTIONAL, 'Number of records to process total; this overrides `per-page` regardless of setting.')
-            ->addOption('debug', null, InputOption::VALUE_NONE, 'Debug mode')
         ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $io = new SymfonyStyle($input, $output);
-        $errors = $messages = $consoleComments = array();
+        $errors = $messages = $consoleComments = $missingUsers = array();
         $limit = $input->getOption('limit') ? $input->getOption('limit') : false;
         $noUpdate = $input->getOption('no-update') ? true : false;
+        $verbose = $input->getOption('verbose') ? true : false;
+        $allowUnassigned = $input->getOption('allow-unassigned') ? true : false;
         $pageSize = $input->getOption('per-page') ? $input->getOption('per-page') : getEnv('PAGE_SIZE');
         $pageSize = $limit > 0 ? $limit : $pageSize;
 
@@ -101,9 +103,12 @@ class ImportIssuesCommand extends Command
         $q = sprintf('repo:%s/%s', getEnv('GITHUB_ORGANIZATION'), $githubRepo);
         $search = $github->api('search')->issues($q);
         $total = $search['total_count'];
+        $output->writeln(sprintf('Found %s total Github Issues to process.', $total));
         $pages = $limit ? 1 : round($total / $pageSize);
 
         for($i=0;$i<$pages;$i++) {
+
+            $output->writeln(sprintf('Processing page %s of %s.', $i, $pages));
 
             $issues = $github->api('issue')->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, [
                 'state' => $state,
@@ -147,10 +152,16 @@ class ImportIssuesCommand extends Command
                         ;
 
                         if($epic instanceof JiraIssue) {
-                            $issueService->update($epic->key, $issueField);
-                            $message = sprintf('Updating JIRA EPIC %s..', $epic->key);
-                            //refresh the issue
-                            $epic = $issueService->get($epic->key);
+                            if(!$noUpdate) {
+                                $issueService->update($epic->key, $issueField);
+                                $message = sprintf('Updating JIRA EPIC %s..', $epic->key);
+                                //refresh the issue
+                                $epic = $issueService->get($epic->key);
+                            }
+                            else {
+                                $message = sprintf('(Skipping) Updating JIRA EPIC %s..', $epic->key);
+                            }
+
                         }
                         else {
                             $epic = $issueService->create($issueField);
@@ -158,29 +169,15 @@ class ImportIssuesCommand extends Command
                         }
 
                         $messages[] = $message;
-                        $output->writeln($message);
+                        if($verbose) {
+                            $output->writeln($message);
+                        }
 
                     }
 
                     /**
                      * Now that we have an Epic, move on to processing the Issue explicitly.
                      */
-
-                    //the `user` is the creator of the issue
-                    $user = $this->helpers->githubLoginToJiraUsername($item['user']['login']);
-
-                    //the `assignee` is the... duh
-                    $isAssigned = isset($item['assignee']['login']) ? $item['assignee']['login'] : false;
-                    if($isAssigned) {
-                        $assignee = $this->helpers->githubLoginToJiraUsername($item['assignee']['login']);
-                    }
-
-                    if(!$user) {
-                        $message = sprintf('<error>User %s does not exist in Jira!</error>', $item['user']['login']);
-                        $consoleComments[] = $message;
-                        $output->writeln($message);
-                        continue;
-                    }
 
                     //create the Issue
                     $issueField = new IssueField();
@@ -189,13 +186,42 @@ class ImportIssuesCommand extends Command
                         ->setPriorityName('Medium')
                         ->setIssueType('Story')
                         ->setDescription($item['body'])
-                        ->setReporterName($user->name)
                         ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_GITHUB_ISSUE'), strval($item['html_url']))
                     ;
 
-                    //if we have an assignee, assign him/her!
+                    //the `user` is the creator of the issue
+                    $user = $this->helpers->githubLoginToJiraUsername($item['user']['login']);
+
+                    if(!$user) {
+                        $message = sprintf('<error>User %s does not exist in Jira!</error>', $item['user']['login']);
+                        $missingUsers[] = $item['user']['login'];
+                        if(!$allowUnassigned) {
+                            $output->writeln($message);
+                            continue;
+                        }
+                    }
+                    else {
+                        $issueField->setReporterName($user->name);
+                    }
+
+                    //the `assignee` is the... duh
+                    $isAssigned = isset($item['assignee']['login']) ? $item['assignee']['login'] : false;
                     if($isAssigned) {
-                        $issueField->setAssigneeName($assignee->name);
+                        $assignee = $this->helpers->githubLoginToJiraUsername($item['assignee']['login']);
+                        if(!$assignee) {
+                            $message = sprintf('<error>User %s does not exist in Jira!</error>', $item['user']['login']);
+                            $missingUsers[] = $item['user']['login'];
+                            if(!$allowUnassigned) {
+                                $output->writeln($message);
+                                continue;
+                            }
+                            else {
+                                $issueField->setAssigneeToDefault();
+                            }
+                        }
+                        else {
+                            $issueField->setAssigneeName($assignee->name);
+                        }
                     }
 
                     //if we have an Epic, link it!
@@ -233,30 +259,33 @@ class ImportIssuesCommand extends Command
                     }
 
                     $messages[] = $message;
-                    $output->writeln($message);
+                    if($verbose) {
+                        $output->writeln($message);
+                    }
 
                     /**
-                     * Now that we have the Issue, let's import the associated Comments
-                     * @TODO: update comments if we're updating issue, for now just purge comments and resubmit them..
+                     * Do we need to set this Issue as "Done"
                      */
+                    if($item['state'] == 'closed') {
+                        $transition = new Transition();
+                        $transition->setTransitionName('Done');
+                        $resolution = sprintf('(JiraBot) Resolving %s via REST API.', $issue->key);
+                        $transition->setCommentBody($resolution);
+                        $issueService = new IssueService();
+                        $issueService->transition($issue->key, $transition);
+                        $message = sprintf('Closing Issue %s', $issue->key);
+                        if($verbose) {
+                            $output->writeln($message);
+                        }
+                        $consoleComments[] = $message;
+                    }
 
                     if(false === $noUpdate) {
 
                         /**
-                         * Do we need to set this Issue as "Done"
+                         * Now that we have the Issue, let's import the associated Comments
+                         * @TODO: update comments if we're updating issue, for now just purge comments and resubmit them..
                          */
-                        if($item['state'] == 'closed') {
-                            $transition = new Transition();
-                            $transition->setTransitionName('Done');
-                            $resolution = sprintf('(JiraBot) Resolving %s via REST API.', $issue->key);
-                            $transition->setCommentBody($resolution);
-                            $issueService = new IssueService();
-                            $issueService->transition($issue->key, $transition);
-                            $message = sprintf('Closing Issue %s', $issue->key);
-                            $output->writeln($message);
-                            $consoleComments[] = $message;
-                        }
-
                         $response = $issueService->getComments($issue->key);
                         if($response->total) {
                             foreach($response->comments as $c) {
@@ -280,7 +309,9 @@ class ImportIssuesCommand extends Command
             catch(\Exception $e) {
                 $message = sprintf('<error>%s: %s</error>', $e->getLine(), $e->getMessage());
                 $errors[] = $message;
-                $output->writeln($message);
+                if($verbose) {
+                    $output->writeln($message);
+                }
                 exit;
             }
 
@@ -303,6 +334,8 @@ class ImportIssuesCommand extends Command
                 'params' => $params
             ], 'import-users');
         }
+
+        $output->writeln('<info>Github2Jira Import Complete!</info>');
 
     }
 
