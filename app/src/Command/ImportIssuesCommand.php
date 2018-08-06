@@ -87,6 +87,7 @@ class ImportIssuesCommand extends Command
         $issueService = new IssueService();
 
         $p = new ProjectService();
+
         try {
             $jiraProject = $p->get($projectKey);
         }
@@ -110,7 +111,7 @@ class ImportIssuesCommand extends Command
 
         for($i=0;$i<$pages;$i++) {
 
-            $output->writeln(sprintf('Processing page %s of %s.', $i, $pages));
+            $output->writeln(sprintf('Processing page %s of %s.', $i+1, $pages));
 
             $issues = $github->api('issue')->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, [
                 'state' => $state,
@@ -298,7 +299,9 @@ class ImportIssuesCommand extends Command
                         $comments = $github->api('issue')->comments()->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number']);
                         foreach($comments as $comment) {
                             $c = new Comment();
-                            $c->setBody($comment['body']);
+                            $body = $comment['body'];
+                            $body = $body . sprintf('Comment imported by %s, original comment posted by %s.', getenv('JIRA_USER'), $comment['user']['login']);
+                            $c->setBody($body);
                             $issueService = new IssueService();
                             $ret = $issueService->addComment($issue->key, $c);
                         }
