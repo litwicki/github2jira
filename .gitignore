@@ -1,9 +1,8 @@
 .idea
-app/var/data/*.json
 
-###> symfony/framework-bundle ###
 app/.env
 app/public/bundles/
-app/var/
+app/var/cache
+app/var/data/*.json
+app/log
 app/vendor/
-###< symfony/framework-bundle ###
