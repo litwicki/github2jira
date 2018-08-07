@@ -270,13 +270,19 @@ class ImportIssuesCommand extends Command
                      * Do we need to set this Issue as "Done"
                      */
                     if($item['state'] == 'closed') {
-                        $transition = new Transition();
-                        $transition->setTransitionName('Done');
-                        $resolution = sprintf('(JiraBot) Resolving %s via REST API.', $issue->key);
-                        $transition->setCommentBody($resolution);
-                        $issueService = new IssueService();
-                        $issueService->transition($issue->key, $transition);
-                        $message = sprintf('Closing Issue %s', $issue->key);
+                        if(true === ('Done' == $issue->fields->status->name)) {
+                            $message = sprintf('Issue already in status "Done"');
+                        }
+                        else {
+                            $transition = new Transition();
+                            $transition->setTransitionName('Done');
+                            $resolution = sprintf('%s Resolved %s via Github2Jira.', getEnv('JIRA_USER'), $issue->key);
+                            $transition->setCommentBody($resolution);
+                            $issueService = new IssueService();
+                            $issueService->transition($issue->key, $transition);
+                            $message = sprintf('Closing Issue %s', $issue->key);
+                        }
+
                         if($verbose) {
                             $output->writeln($message);
                         }
@@ -299,8 +305,10 @@ class ImportIssuesCommand extends Command
                         $comments = $github->api('issue')->comments()->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number']);
                         foreach($comments as $comment) {
                             $c = new Comment();
+                            $jiraUser = $this->helpers->githubLoginToJiraUsername($comment['user']['login']);
+                            $commentAuthor = sprintf('%s <%s>', $comment['user']['login'], $jiraUser->emailAddress);
                             $body = $comment['body'];
-                            $body = $body . sprintf('Comment imported by %s, original comment posted by %s.', getenv('JIRA_USER'), $comment['user']['login']);
+                            $body = $body . "\n\n---\n" . sprintf('Comment imported by %s, original comment posted by %s.', getenv('JIRA_USER'), $commentAuthor);
                             $c->setBody($body);
                             $issueService = new IssueService();
                             $ret = $issueService->addComment($issue->key, $c);
@@ -314,9 +322,7 @@ class ImportIssuesCommand extends Command
             catch(\Exception $e) {
                 $message = sprintf('<error>%s: %s</error>', $e->getLine(), $e->getMessage());
                 $errors[] = $message;
-                if($verbose) {
-                    $output->writeln($message);
-                }
+                $output->writeln($message);
                 exit;
             }
 
