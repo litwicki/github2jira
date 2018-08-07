@@ -57,6 +57,7 @@ class ImportIssuesCommand extends Command
             ->addOption('no-update', null, InputOption::VALUE_NONE, 'If you only want to import new records and bypass updating existing issues.')
             ->addOption('send-email', null, InputOption::VALUE_NONE, 'Send an email recapping everything.')
             ->addOption('allow-unassigned', null, InputOption::VALUE_NONE, 'If a User does not exist, set to Unassigned/Default.')
+            ->addOption('skip-commenbts', null, InputOption::VALUE_NONE, 'Skip processing comments.')
             ->addOption('state', null, InputOption::VALUE_OPTIONAL, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
             ->addOption('per-page', null, InputOption::VALUE_OPTIONAL, 'Number of records to process per search/request.')
             ->addOption('limit', null, InputOption::VALUE_OPTIONAL, 'Number of records to process total; this overrides `per-page` regardless of setting.')
@@ -69,6 +70,7 @@ class ImportIssuesCommand extends Command
         $errors = $messages = $consoleComments = $missingUsers = array();
         $limit = $input->getOption('limit') ? $input->getOption('limit') : false;
         $noUpdate = $input->getOption('no-update') ? true : false;
+        $skipComments = $input->getOption('skip-comments') ? true : false;
         $verbose = $input->getOption('verbose') ? true : false;
         $allowUnassigned = $input->getOption('allow-unassigned') ? true : false;
         $pageSize = $input->getOption('per-page') ? $input->getOption('per-page') : getEnv('PAGE_SIZE');
@@ -302,16 +304,17 @@ class ImportIssuesCommand extends Command
                             }
                         }
 
-                        $comments = $github->api('issue')->comments()->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number']);
-                        foreach($comments as $comment) {
-                            $c = new Comment();
-                            $jiraUser = $this->helpers->githubLoginToJiraUsername($comment['user']['login']);
-                            $commentAuthor = sprintf('%s <%s>', $comment['user']['login'], $jiraUser->emailAddress);
-                            $body = $comment['body'];
-                            $body = $body . "\n\n---\n" . sprintf('Comment imported by %s, original comment posted by %s.', getenv('JIRA_USER'), $commentAuthor);
-                            $c->setBody($body);
-                            $issueService = new IssueService();
-                            $ret = $issueService->addComment($issue->key, $c);
+                        if(false === $skipComments) {
+                            $comments = $github->api('issue')->comments()->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number']);
+                            foreach($comments as $comment) {
+                                $c = new Comment();
+                                $jiraUser = $this->helpers->githubLoginToJiraUsername($comment['user']['login']);
+                                $body = $comment['body'];
+                                $body = $body . "\n\n---\n" . sprintf('Comment imported by %s on behalf of %s.', getenv('JIRA_USER'), $jiraUser->emailAddress);
+                                $c->setBody($body);
+                                $issueService = new IssueService();
+                                $ret = $issueService->addComment($issue->key, $c);
+                            }
                         }
 
                     }
