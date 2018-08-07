@@ -10,6 +10,7 @@ use Github\Client as GithubClient;
 use JiraRestApi\Issue\Transition;
 use JiraRestApi\Project\Project as JiraProject;
 use JiraRestApi\Project\ProjectService;
+use JiraRestApi\User\User;
 use JiraRestApi\User\UserService;
 use JiraRestApi\User\UserPropertiesService;
 use Symfony\Component\Console\Command\Command;
@@ -349,9 +350,10 @@ class ImportIssuesCommand extends Github2JiraCommand
                             $comments = $github->api('issue')->comments()->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number']);
                             foreach($comments as $comment) {
                                 $c = new Comment();
-                                $jiraUser = $this->helpers->githubLoginToJiraUsername($comment['user']['login']);
                                 $body = $comment['body'];
-                                $body = $body . "\n\n---\n" . sprintf('Comment imported by %s on behalf of %s.', getenv('JIRA_USER'), $jiraUser->emailAddress);
+                                $jiraUser = $this->helpers->githubLoginToJiraUsername($comment['user']['login']);
+                                $author = $jiraUser ? $jiraUser->emailAddress : $comment['user']['login'];
+                                $body = $body . "\n\n---\n" . sprintf('Comment imported by %s on behalf of %s.', getenv('JIRA_USER'), $author);
                                 $c->setBody($body);
                                 $issueService = new IssueService();
                                 $ret = $issueService->addComment($issue->key, $c);
@@ -365,6 +367,7 @@ class ImportIssuesCommand extends Github2JiraCommand
 
                 }
                 catch(\Exception $e) {
+                    throw $e;
                     $message = sprintf('<error>%s: %s</error>', $e->getLine(), $e->getMessage());
                     $errors[] = $message;
                     if($verbose) {
