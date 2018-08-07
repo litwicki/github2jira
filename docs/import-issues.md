@@ -14,6 +14,7 @@ Migrate issues from [Github](https://developer.github.com/v3/) to [Jira](https:/
 |jira-project-key|YES|string|The JIRA Project to import into.|
 |no-update|NA|null|If you only want to import new records and bypass updating existing issues.|
 |send-email|NA|null|Send an email recapping everything.|
+|skip-comments|NA|null|Skip processing any comment(s).|
 |allow-unassigned|NA|null|If a User does not exist, set to Unassigned/Default.|
 |state|NO|string|If you would like to import a specific state of issue, otherwise defaults to `all`|
 |per-page|NO|int|Number of records to process per search/request.|

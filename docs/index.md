@@ -34,14 +34,7 @@ To get started simply copy `.env.dist` to `.env` and customize with your options
 
 # Available Commands
 
-A list of all the available commands.
-
-### Import
-
-* Users
-* Issues
-
-### Purge
-* Purge all imported issues from Jira
-* Purge all imported users from Jira
-
+* [Import Users](import-users.md)
+* [Import Issues](import-issues.md)
+* [Purge Imported Issues from Jira](purge-issues.md)
+* [Purge Imported Users from Jira](purge-users.md)
