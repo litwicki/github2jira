@@ -112,20 +112,34 @@ class ImportIssuesCommand extends Github2JiraCommand
         }
 
         //if `state` is not passed, default to `all`
-        $state = $input->getOption('state') ? $input->getOption('state') : 'all';
+        $state = $input->getOption('state') ? $input->getOption('state') : null;
 
-        $github = new GithubClient();
-        //@TODO: make the autowiring for this work with Symfony4
-        $github->authenticate(getEnv('GITHUB_USERNAME'), null, GitHubClient::AUTH_HTTP_TOKEN);
-        $github->api('search')->setPerPage($pageSize);
+        if(!in_array($state, ['open', 'closed']))
 
-        $q = sprintf('repo:%s/%s state:%s -label:github2jira', getEnv('GITHUB_ORGANIZATION'), $githubRepo, $state);
+        if(!is_null($state)) {
+            $q = sprintf('repo:%s/%s state:%s', getEnv('GITHUB_ORGANIZATION'), $githubRepo, $state);
+        }
+        else {
+            $q = sprintf('repo:%s/%s', getEnv('GITHUB_ORGANIZATION'), $githubRepo);
+        }
+
+        /**
+         * If we're skipping updates, then exclude Github issues that we have already processed, so they're not
+         * processed in the initial queries we run.
+         */
+        if(false === $noUpdate) {
+            $q = sprintf('%s -label:github2jira', $q);
+        }
 
         if($verbose) {
             $this->console($output, sprintf('Github Query: %s', $q) );
         }
 
+        $github = new GithubClient();
+        $github->authenticate(getEnv('GITHUB_USERNAME'), null, GitHubClient::AUTH_HTTP_TOKEN);
+
         $results = $github->api('search')->issues($q);
+        $github->api('search')->setPerPage($pageSize);
         $total = $results['total_count'];
         $this->console($output, sprintf('Found %s total Github Issues to process.', $total));
         $pages = $limit ? 1 : round($total / $pageSize);
@@ -133,7 +147,8 @@ class ImportIssuesCommand extends Github2JiraCommand
         for($i=0;$i<$pages;$i++) {
 
             $github->api('search')->setPage($i+1);
-            $issues = $github->api('search')->issues($q);
+            $result = $github->api('search')->issues($q);
+            $issues = $result['items'];
 
             $this->console($output, sprintf('Processing page %s of %s.', $i+1, $pages));
 
@@ -145,10 +160,17 @@ class ImportIssuesCommand extends Github2JiraCommand
                      * Do not treat pull requests as Issues for JIRA
                      */
                     if(isset($item['pull_request'])) {
+
                         if($verbose) {
                             $this->console($output, sprintf('Skipping Pull Request: %s', $item['number']));
                         }
+
+                        //label this so we can skip it in the future..
+                        $this->labelGithubIssue($github, $githubRepo, $item['number']);
+
+                        //move on
                         continue;
+
                     }
 
                     /**
@@ -338,10 +360,8 @@ class ImportIssuesCommand extends Github2JiraCommand
 
                     }
 
-                    /**
-                     * Add a `jira` label to the issue in Github so we can exclude it.
-                     */
-                    $github->api('issue')->labels()->add(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number'], 'github2jira');
+                    //label this issue as processed so we can skip in the future
+                    $this->labelGithubIssue($github, $githubRepo, $item['number']);
 
                 }
                 catch(\Exception $e) {
@@ -358,13 +378,6 @@ class ImportIssuesCommand extends Github2JiraCommand
 
         }
 
-        $params = [
-            'messages' => $messages,
-            'errors' => $errors,
-            'comments' => $consoleComments,
-            'body' => sprintf('%s imported, %s updated, %s failed.', $created, $updated, count($errors))
-        ];
-
         /**
          * Send an email recapping what was done.
          */
@@ -372,7 +385,12 @@ class ImportIssuesCommand extends Github2JiraCommand
             $this->mailer->send([
                 'recipients' => [getEnv('APP_USER_EMAIL')],
                 'subject' => 'Github2Jira Import Issues',
-                'params' => $params
+                'params' => [
+                    'messages' => $messages,
+                    'errors' => $errors,
+                    'comments' => $consoleComments,
+                    'body' => sprintf('%s imported, %s updated, %s failed.', $created, $updated, count($errors))
+                ],
             ], 'import-users');
         }
 
@@ -380,6 +398,17 @@ class ImportIssuesCommand extends Github2JiraCommand
         $this->console($output, '<info>Github2Jira Process Complete!</info>');
         $this->console($output, '');
 
+    }
+
+    /**
+     * @param GithubClient $github
+     * @param string $repo
+     * @param int $number
+     * @param string $label
+     */
+    public function labelGithubIssue(GithubClient $github, string $repo, int $number, string $label = 'github2jira')
+    {
+        $github->api('issue')->labels()->add(getEnv('GITHUB_ORGANIZATION'), $repo, $number, $label);
     }
 
 }

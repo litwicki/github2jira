@@ -6,3 +6,4 @@ app/var/cache
 app/var/data/*.json
 app/log
 app/vendor/
+app/*.log
