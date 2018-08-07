@@ -10,7 +10,13 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
-class PurgeJiraUsersCommand extends Command
+use App\Command\Github2JiraCommand;
+
+/**
+ * Class PurgeJiraUsersCommand
+ * @package App\Command
+ */
+class PurgeJiraUsersCommand extends Github2JiraCommand
 {
     protected static $defaultName = 'github2jira:purge-jira-users';
 

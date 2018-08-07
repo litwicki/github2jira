@@ -14,7 +14,13 @@ use App\Common\Github2JiraHelpers;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use App\Mail\Mailer;
 
-class PurgeJiraIssuesCommand extends Command
+use App\Command\Github2JiraCommand;
+
+/**
+ * Class PurgeJiraIssuesCommand
+ * @package App\Command
+ */
+class PurgeJiraIssuesCommand extends Github2JiraCommand
 {
     protected static $defaultName = 'github2jira:purge-jira-issues';
 

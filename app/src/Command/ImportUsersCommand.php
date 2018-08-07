@@ -14,6 +14,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use App\Mail\Mailer;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
+use App\Command\Github2JiraCommand;
 /**
  * Class ImportUsersCommand
  * @package App\Command
@@ -22,7 +23,7 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
  * through autowiring of separate services for JIRA and Github.
  *
  */
-class ImportUsersCommand extends Command
+class ImportUsersCommand extends Github2JiraCommand
 {
     protected static $defaultName = 'github2jira:import:users';
 

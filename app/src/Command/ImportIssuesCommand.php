@@ -8,7 +8,7 @@ use JiraRestApi\Issue\Comment;
 use JiraRestApi\Issue\Issue as JiraIssue;
 use Github\Client as GithubClient;
 use JiraRestApi\Issue\Transition;
-use JiraRestApi\Project\Project;
+use JiraRestApi\Project\Project as JiraProject;
 use JiraRestApi\Project\ProjectService;
 use JiraRestApi\User\UserService;
 use JiraRestApi\User\UserPropertiesService;
@@ -27,7 +27,13 @@ use JiraRestApi\Issue\IssueService;
 use JiraRestApi\Issue\IssueField;
 use JiraRestApi\JiraException;
 
-class ImportIssuesCommand extends Command
+use App\Command\Github2JiraCommand;
+
+/**
+ * Class ImportIssuesCommand
+ * @package App\Command
+ */
+class ImportIssuesCommand extends Github2JiraCommand
 {
     protected static $defaultName = 'github2jira:import:issues';
 
@@ -64,8 +70,15 @@ class ImportIssuesCommand extends Command
         ;
     }
 
+    public function console(OutputInterface $output, $string)
+    {
+        $message = "  " . $string;
+        $output->writeln($message);
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $this->console($output, '');
         $io = new SymfonyStyle($input, $output);
         $errors = $messages = $consoleComments = $missingUsers = array();
         $limit = $input->getOption('limit') ? $input->getOption('limit') : false;
@@ -82,7 +95,7 @@ class ImportIssuesCommand extends Command
         $projectKey = $input->getOption('jira-project-key');
 
         if(!$githubRepo || !$projectKey) {
-            $output->writeln('You must specify a Github Repository (--github-repo) & Jira Project Key (--jira-project-key) to import issues.');
+            $this->console($output, 'You must specify a Github Repository (--github-repo) & Jira Project Key (--jira-project-key) to import issues.');
             exit;
         }
 
@@ -94,7 +107,7 @@ class ImportIssuesCommand extends Command
             $jiraProject = $p->get($projectKey);
         }
         catch(\Exception $e) {
-            $output->writeln(sprintf('Could not find a Jira project with KEY %s.', $projectKey));
+            $this->console($output, sprintf('Could not find a Jira project with KEY %s.', $projectKey));
             exit;
         }
 
@@ -104,31 +117,37 @@ class ImportIssuesCommand extends Command
         $github = new GithubClient();
         //@TODO: make the autowiring for this work with Symfony4
         $github->authenticate(getEnv('GITHUB_USERNAME'), null, GitHubClient::AUTH_HTTP_TOKEN);
+        $github->api('search')->setPerPage($pageSize);
 
-        $q = sprintf('repo:%s/%s', getEnv('GITHUB_ORGANIZATION'), $githubRepo);
-        $search = $github->api('search')->issues($q);
-        $total = $search['total_count'];
-        $output->writeln(sprintf('Found %s total Github Issues to process.', $total));
+        $q = sprintf('repo:%s/%s state:%s -label:github2jira', getEnv('GITHUB_ORGANIZATION'), $githubRepo, $state);
+
+        if($verbose) {
+            $this->console($output, sprintf('Github Query: %s', $q) );
+        }
+
+        $results = $github->api('search')->issues($q);
+        $total = $results['total_count'];
+        $this->console($output, sprintf('Found %s total Github Issues to process.', $total));
         $pages = $limit ? 1 : round($total / $pageSize);
 
         for($i=0;$i<$pages;$i++) {
 
-            $output->writeln(sprintf('Processing page %s of %s.', $i+1, $pages));
+            $github->api('search')->setPage($i+1);
+            $issues = $github->api('search')->issues($q);
 
-            $issues = $github->api('issue')->all(getEnv('GITHUB_ORGANIZATION'), $githubRepo, [
-                'state' => $state,
-                'page' => $i+1,
-                'per_page' => $pageSize,
-            ]);
+            $this->console($output, sprintf('Processing page %s of %s.', $i+1, $pages));
 
-            try {
+            foreach($issues as $item) {
 
-                foreach($issues as $item) {
+                try {
 
                     /**
                      * Do not treat pull requests as Issues for JIRA
                      */
                     if(isset($item['pull_request'])) {
+                        if($verbose) {
+                            $this->console($output, sprintf('Skipping Pull Request: %s', $item['number']));
+                        }
                         continue;
                     }
 
@@ -175,7 +194,7 @@ class ImportIssuesCommand extends Command
 
                         $messages[] = $message;
                         if($verbose) {
-                            $output->writeln($message);
+                            $this->console($output, $message);
                         }
 
                     }
@@ -201,7 +220,7 @@ class ImportIssuesCommand extends Command
                         $message = sprintf('<error>User %s does not exist in Jira!</error>', $item['user']['login']);
                         $missingUsers[] = $item['user']['login'];
                         if(!$allowUnassigned) {
-                            $output->writeln($message);
+                            $this->console($output, $message);
                             continue;
                         }
                     }
@@ -217,7 +236,7 @@ class ImportIssuesCommand extends Command
                             $message = sprintf('<error>User %s does not exist in Jira!</error>', $item['user']['login']);
                             $missingUsers[] = $item['user']['login'];
                             if(!$allowUnassigned) {
-                                $output->writeln($message);
+                                $this->console($output, $message);
                                 continue;
                             }
                             else {
@@ -265,7 +284,7 @@ class ImportIssuesCommand extends Command
 
                     $messages[] = $message;
                     if($verbose) {
-                        $output->writeln($message);
+                        $this->console($output, $message);
                     }
 
                     /**
@@ -286,7 +305,7 @@ class ImportIssuesCommand extends Command
                         }
 
                         if($verbose) {
-                            $output->writeln($message);
+                            $this->console($output, $message);
                         }
                         $consoleComments[] = $message;
                     }
@@ -319,14 +338,22 @@ class ImportIssuesCommand extends Command
 
                     }
 
+                    /**
+                     * Add a `jira` label to the issue in Github so we can exclude it.
+                     */
+                    $github->api('issue')->labels()->add(getEnv('GITHUB_ORGANIZATION'), $githubRepo, $item['number'], 'github2jira');
+
+                }
+                catch(\Exception $e) {
+                    $message = sprintf('<error>%s: %s</error>', $e->getLine(), $e->getMessage());
+                    $errors[] = $message;
+                    if($verbose) {
+                        $message = $message . $e->getTraceAsString();
+                    }
+                    $this->console($output, $message);
+                    exit;
                 }
 
-            }
-            catch(\Exception $e) {
-                $message = sprintf('<error>%s: %s</error>', $e->getLine(), $e->getMessage());
-                $errors[] = $message;
-                $output->writeln($message);
-                exit;
             }
 
         }
@@ -349,7 +376,9 @@ class ImportIssuesCommand extends Command
             ], 'import-users');
         }
 
-        $output->writeln('<info>Github2Jira Import Complete!</info>');
+        $this->console($output, '');
+        $this->console($output, '<info>Github2Jira Process Complete!</info>');
+        $this->console($output, '');
 
     }
 
