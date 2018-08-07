@@ -57,7 +57,7 @@ class ImportIssuesCommand extends Command
             ->addOption('no-update', null, InputOption::VALUE_NONE, 'If you only want to import new records and bypass updating existing issues.')
             ->addOption('send-email', null, InputOption::VALUE_NONE, 'Send an email recapping everything.')
             ->addOption('allow-unassigned', null, InputOption::VALUE_NONE, 'If a User does not exist, set to Unassigned/Default.')
-            ->addOption('skip-commenbts', null, InputOption::VALUE_NONE, 'Skip processing comments.')
+            ->addOption('skip-comments', null, InputOption::VALUE_NONE, 'Skip processing comments.')
             ->addOption('state', null, InputOption::VALUE_OPTIONAL, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
             ->addOption('per-page', null, InputOption::VALUE_OPTIONAL, 'Number of records to process per search/request.')
             ->addOption('limit', null, InputOption::VALUE_OPTIONAL, 'Number of records to process total; this overrides `per-page` regardless of setting.')
