@@ -128,7 +128,7 @@ class ImportIssuesCommand extends Github2JiraCommand
          * If we're skipping updates, then exclude Github issues that we have already processed, so they're not
          * processed in the initial queries we run.
          */
-        if(false === $noUpdate) {
+        if(true === $noUpdate) {
             $q = sprintf('%s -label:github2jira', $q);
         }
 
@@ -199,14 +199,14 @@ class ImportIssuesCommand extends Github2JiraCommand
                         ;
 
                         if($epic instanceof JiraIssue) {
-                            if(!$noUpdate) {
+                            if(true === $noUpdate) {
+                                $message = sprintf('(Skipped) Updating JIRA EPIC %s..', $epic->key);
+                            }
+                            else {
                                 $issueService->update($epic->key, $issueField);
                                 $message = sprintf('Updating JIRA EPIC %s..', $epic->key);
                                 //refresh the issue
                                 $epic = $issueService->get($epic->key);
-                            }
-                            else {
-                                $message = sprintf('(Skipping) Updating JIRA EPIC %s..', $epic->key);
                             }
 
                         }
@@ -310,30 +310,31 @@ class ImportIssuesCommand extends Github2JiraCommand
                         $this->console($output, $message);
                     }
 
-                    /**
-                     * Do we need to set this Issue as "Done"
-                     */
-                    if($item['state'] == 'closed') {
-                        if(true === ('Done' == $issue->fields->status->name)) {
-                            $message = sprintf('Issue already in status "Done"');
-                        }
-                        else {
-                            $transition = new Transition();
-                            $transition->setTransitionName('Done');
-                            $resolution = sprintf('%s Resolved %s via Github2Jira.', getEnv('JIRA_USER'), $issue->key);
-                            $transition->setCommentBody($resolution);
-                            $issueService = new IssueService();
-                            $issueService->transition($issue->key, $transition);
-                            $message = sprintf('Closing Issue %s', $issue->key);
-                        }
-
-                        if($verbose) {
-                            $this->console($output, $message);
-                        }
-                        $consoleComments[] = $message;
-                    }
-
                     if(false === $noUpdate) {
+
+                        /**
+                         * Do we need to set this Issue as "Done"
+                         */
+                        if($item['state'] == 'closed') {
+                            if(true === ('Done' == $issue->fields->status->name)) {
+                                $message = sprintf('Issue already in status "Done"');
+                            }
+                            else {
+                                $transition = new Transition();
+                                $transition->setTransitionName('Done');
+                                $resolution = sprintf('%s Resolved %s via Github2Jira.', getEnv('JIRA_USER'), $issue->key);
+                                $transition->setCommentBody($resolution);
+                                $issueService = new IssueService();
+                                $issueService->transition($issue->key, $transition);
+                                $message = sprintf('Closing Issue %s', $issue->key);
+                            }
+
+                            if($verbose) {
+                                $this->console($output, $message);
+                            }
+
+                            $consoleComments[] = $message;
+                        }
 
                         /**
                          * Now that we have the Issue, let's import the associated Comments
