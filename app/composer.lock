@@ -487,16 +487,16 @@
         },
         {
             "name": "lesstif/php-jira-rest-client",
-            "version": "1.29.0",
+            "version": "1.30.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/lesstif/php-jira-rest-client.git",
-                "reference": "4a8cdc6acff6f6397c8c39e92c6f823188cd77b5"
+                "reference": "abcbbb7b7cd7f6a5376326c5137b3f7d233ecc25"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/lesstif/php-jira-rest-client/zipball/4a8cdc6acff6f6397c8c39e92c6f823188cd77b5",
-                "reference": "4a8cdc6acff6f6397c8c39e92c6f823188cd77b5",
+                "url": "https://api.github.com/repos/lesstif/php-jira-rest-client/zipball/abcbbb7b7cd7f6a5376326c5137b3f7d233ecc25",
+                "reference": "abcbbb7b7cd7f6a5376326c5137b3f7d233ecc25",
                 "shasum": ""
             },
             "require": {
@@ -535,7 +535,7 @@
                 "jira-rest",
                 "rest"
             ],
-            "time": "2018-07-28T11:23:23+00:00"
+            "time": "2018-08-09T11:42:46+00:00"
         },
         {
             "name": "monolog/monolog",
@@ -2419,16 +2419,16 @@
         },
         {
             "name": "symfony/maker-bundle",
-            "version": "v1.5.0",
+            "version": "v1.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/maker-bundle.git",
-                "reference": "bb0485a3b2eecc561eff735109316677e18fb1d1"
+                "reference": "a1b0d9ff35219ec36c44fcc6213056cc339a1cf8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/maker-bundle/zipball/bb0485a3b2eecc561eff735109316677e18fb1d1",
-                "reference": "bb0485a3b2eecc561eff735109316677e18fb1d1",
+                "url": "https://api.github.com/repos/symfony/maker-bundle/zipball/a1b0d9ff35219ec36c44fcc6213056cc339a1cf8",
+                "reference": "a1b0d9ff35219ec36c44fcc6213056cc339a1cf8",
                 "shasum": ""
             },
             "require": {
@@ -2480,7 +2480,7 @@
                 "scaffold",
                 "scaffolding"
             ],
-            "time": "2018-05-17T19:26:29+00:00"
+            "time": "2018-08-07T16:05:09+00:00"
         },
         {
             "name": "symfony/options-resolver",

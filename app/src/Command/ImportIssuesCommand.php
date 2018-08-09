@@ -60,10 +60,10 @@ class ImportIssuesCommand extends Github2JiraCommand
         $this
             ->setDescription('Add a short description for your command')
             ->addOption('github-repo', null, InputOption::VALUE_REQUIRED, 'The Github Repository to import from.')
-            ->addOption('jira-project-key', null, InputOption::VALUE_REQUIRED, 'The JIRA Project to import into.')
+            ->addOption('jira-project-key', null, InputOption::VALUE_REQUIRED, 'The Jira Project to import into.')
             ->addOption('no-update', null, InputOption::VALUE_NONE, 'If you only want to import new records and bypass updating existing issues.')
             ->addOption('send-email', null, InputOption::VALUE_NONE, 'Send an email recapping everything.')
-            ->addOption('allow-unassigned', null, InputOption::VALUE_NONE, 'If a User does not exist, set to Unassigned/Default.')
+            ->addOption('allow-unassigned', null, InputOption::VALUE_NONE, 'If a User does not exist in Jira, set to Unassigned/Default.')
             ->addOption('skip-comments', null, InputOption::VALUE_NONE, 'Skip processing comments.')
             ->addOption('state', null, InputOption::VALUE_OPTIONAL, 'If you would like to import a specific state of issue, otherwise defaults to `all`')
             ->addOption('per-page', null, InputOption::VALUE_OPTIONAL, 'Number of records to process per search/request.')
@@ -143,7 +143,11 @@ class ImportIssuesCommand extends Github2JiraCommand
         $github->api('search')->setPerPage($pageSize);
         $total = $results['total_count'];
         $this->console($output, sprintf('Found %s total Github Issues to process.', $total));
-        $pages = $limit ? 1 : round($total / $pageSize);
+
+        /**
+         * Calculate the number of pages to process based on some variability of pageSize, limit, etc.
+         */
+        $pages = $limit ? round($limit / $pageSize) : $pageSize > $total ? 1 : round($total / $pageSize);
 
         for($i=0;$i<$pages;$i++) {
 
@@ -158,7 +162,7 @@ class ImportIssuesCommand extends Github2JiraCommand
                 try {
 
                     /**
-                     * Do not treat pull requests as Issues for JIRA
+                     * Do not treat pull requests as Issues for Jira
                      */
                     if(isset($item['pull_request'])) {
 
@@ -176,7 +180,7 @@ class ImportIssuesCommand extends Github2JiraCommand
 
                     /**
                      * Start by identifying if we have a milestone, and if we do, let's treat it
-                     * like a JIRA epic, and either fetch it or create it if we don't have it in JIRA
+                     * like a Jira epic, and either fetch it or create it if we don't have it in Jira
                      * already.
                      */
                     $epic = false;
@@ -200,11 +204,11 @@ class ImportIssuesCommand extends Github2JiraCommand
 
                         if($epic instanceof JiraIssue) {
                             if(true === $noUpdate) {
-                                $message = sprintf('(Skipped) Updating JIRA EPIC %s..', $epic->key);
+                                $message = sprintf('(Skipped) Updating Jira EPIC %s..', $epic->key);
                             }
                             else {
                                 $issueService->update($epic->key, $issueField);
-                                $message = sprintf('Updating JIRA EPIC %s..', $epic->key);
+                                $message = sprintf('Updating Jira EPIC %s..', $epic->key);
                                 //refresh the issue
                                 $epic = $issueService->get($epic->key);
                             }
@@ -212,7 +216,7 @@ class ImportIssuesCommand extends Github2JiraCommand
                         }
                         else {
                             $epic = $issueService->create($issueField);
-                            $message = sprintf('JIRA EPIC %s created.', $epic->key);
+                            $message = sprintf('Jira EPIC %s created.', $epic->key);
                         }
 
                         $messages[] = $message;
@@ -288,11 +292,11 @@ class ImportIssuesCommand extends Github2JiraCommand
                     if($issue instanceof JiraIssue) {
 
                         if(true === $noUpdate) {
-                            $message = sprintf('(Skipped) Updating JIRA Issue %s..', $issue->key);
+                            $message = sprintf('(Skipped) Updating Jira Issue %s..', $issue->key);
                         }
                         else {
                             $issueService->update($issue->key, $issueField);
-                            $message = sprintf('Updating JIRA Issue %s..', $issue->key);
+                            $message = sprintf('Updating Jira Issue %s..', $issue->key);
                             //refresh the issue
                             $issue = $issueService->get($issue->key);
                             $updated++;
@@ -301,7 +305,7 @@ class ImportIssuesCommand extends Github2JiraCommand
                     }
                     else {
                         $issue = $issueService->create($issueField);
-                        $message = sprintf('JIRA Issue %s imported.', $issue->key);
+                        $message = sprintf('Jira Issue %s imported.', $issue->key);
                         $created++;
                     }
 
@@ -316,7 +320,7 @@ class ImportIssuesCommand extends Github2JiraCommand
                          * Do we need to set this Issue as "Done"
                          */
                         if($item['state'] == 'closed') {
-                            if(true === ('Done' == $issue->fields->status->name)) {
+                            if(true === (!is_null($issue->fields)) && ('Done' == $issue->fields->status->name)) {
                                 $message = sprintf('Issue already in status "Done"');
                             }
                             else {
@@ -368,14 +372,17 @@ class ImportIssuesCommand extends Github2JiraCommand
 
                 }
                 catch(\Exception $e) {
-                    throw $e;
+
+                    if($verbose) {
+                        throw $e;
+                    }
+
                     $message = sprintf('<error>%s: %s</error>', $e->getLine(), $e->getMessage());
                     $errors[] = $message;
-                    if($verbose) {
-                        $message = $message . $e->getTraceAsString();
-                    }
+
                     $this->console($output, $message);
                     exit;
+
                 }
 
             }
