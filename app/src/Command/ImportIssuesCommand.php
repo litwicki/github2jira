@@ -38,23 +38,6 @@ class ImportIssuesCommand extends Github2JiraCommand
 {
     protected static $defaultName = 'github2jira:import:issues';
 
-    protected $params;
-
-    protected $helpers;
-
-    /**
-     * @var App\Mail\Mailer
-     */
-    protected $mailer;
-
-    public function __construct(Mailer $mailer, ParameterBagInterface $params, Github2JiraHelpers $helpers)
-    {
-        parent::__construct();
-        $this->params = $params;
-        $this->helpers = $helpers;
-        $this->mailer = $mailer;
-    }
-
     protected function configure()
     {
         $this

@@ -6,6 +6,8 @@ use JiraRestApi\Project\Project;
 use JiraRestApi\User\UserService;
 use JiraRestApi\Issue\IssueService;
 use JiraRestApi\JiraException;
+use JiraRestApi\Field\FieldService;
+use JiraRestApi\Field\Field;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 
 class Github2JiraHelpers
@@ -123,6 +125,23 @@ class Github2JiraHelpers
         $jql = sprintf('project = "%s" and issuetype = Epic and summary ~ "%s"', $projectKey, $summary);
         $result = $this->issueService->search($jql);
         return $result->total ? $result->getIssue(0) : false;
+    }
+
+    /**
+     * @param string $fieldId
+     * @return bool
+     * @throws JiraException
+     */
+    public function getCustomJiraField(string $fieldId)
+    {
+        $fieldSvc = new FieldService();
+        $fields = $fieldSvc->getAllFields();
+        foreach($fields as $field) {
+            if(true === ($field->key == $fieldId)) {
+                return $field;
+            }
+        }
+        return false;
     }
 
 }
