@@ -287,6 +287,11 @@ class ImportIssuesCommand extends Github2JiraCommand
                         }
                     }
 
+                    /**
+                     * Add a label for the repo we're pulling from
+                     */
+                    $issueField->addLabel($githubRepo);
+
                     $issue = $this->helpers->findIssueInJira($item['html_url'], $jiraProject);
 
                     if($issue instanceof JiraIssue) {
