@@ -98,7 +98,9 @@ class ImportIssuesCommand extends Github2JiraCommand
         //if `state` is not passed, default to `all`
         $state = $input->getOption('state') ? $input->getOption('state') : null;
 
-        if(!in_array($state, ['open', 'closed']))
+        if(!in_array($state, ['open', 'closed'])) {
+            //@TODO: should we flag an exception and filter appropriate states?
+        }
 
         if(!is_null($state)) {
             $q = sprintf('repo:%s/%s state:%s', getEnv('GITHUB_ORGANIZATION'), $githubRepo, $state);
@@ -177,7 +179,7 @@ class ImportIssuesCommand extends Github2JiraCommand
                         $issueField = new IssueField();
                         $issueField->setProjectKey($jiraProject->key)
                             ->setSummary($milestone['title'])
-                            ->setPriorityName('Medium')
+                            //->setPriorityName('Medium') //@TODO: fix this to be a parameter; this fails if priority field is disabled in JIRA
                             ->setIssueType('Epic')
                             ->setDescription($body)
                             ->addLabel('github')
@@ -217,7 +219,7 @@ class ImportIssuesCommand extends Github2JiraCommand
                     $issueField = new IssueField();
                     $issueField->setProjectKey($jiraProject->key)
                         ->setSummary($item['title'])
-                        ->setPriorityName('Medium')
+                        //->setPriorityName('Medium') //@TODO: fix this to be a parameter; this fails if priority field is disabled in JIRA
                         ->setIssueType('Story')
                         ->setDescription($item['body'])
                         ->addCustomField(getEnv('JIRA_CUSTOM_FIELD_GITHUB_ISSUE'), strval($item['html_url']))
@@ -308,12 +310,12 @@ class ImportIssuesCommand extends Github2JiraCommand
                          * Do we need to set this Issue as "Done"
                          */
                         if($item['state'] == 'closed') {
-                            if(true === (!is_null($issue->fields)) && ('Done' == $issue->fields->status->name)) {
-                                $message = sprintf('Issue already in status "Done"');
+                            if(true === (!is_null($issue->fields)) && (getEnv('JIRA_CLOSED_TRANSITION') == $issue->fields->status->name)) {
+                                $message = sprintf('Issue already in status "%s"', getEnv('JIRA_CLOSED_TRANSITION'));
                             }
                             else {
                                 $transition = new Transition();
-                                $transition->setTransitionName('Done');
+                                $transition->setTransitionName(getEnv('JIRA_CLOSED_TRANSITION'));
                                 $resolution = sprintf('%s Resolved %s via Github2Jira.', getEnv('JIRA_USER'), $issue->key);
                                 $transition->setCommentBody($resolution);
                                 $issueService = new IssueService();
@@ -347,6 +349,14 @@ class ImportIssuesCommand extends Github2JiraCommand
                                 $jiraUser = $this->helpers->githubLoginToJiraUsername($comment['user']['login']);
                                 $author = $jiraUser ? $jiraUser->emailAddress : $comment['user']['login'];
                                 $body = $body . "\n\n---\n" . sprintf('Comment imported by %s on behalf of %s.', getenv('JIRA_USER'), $author);
+
+                                /**
+                                 * @TODO: if comments are too large we should convert them to txt attachments
+                                 */
+                                if(strlen($body) > 32767) {
+                                    $body = substr($body, 0,32764) . '...';
+                                }
+
                                 $c->setBody($body);
                                 $issueService = new IssueService();
                                 $ret = $issueService->addComment($issue->key, $c);
