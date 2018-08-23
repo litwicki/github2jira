@@ -22,6 +22,7 @@ To get started simply copy `.env.dist` to `.env` and customize with your options
 |`JIRA_CUSTOM_FIELD_GITHUB_ISSUE`| |customfield_#####|Get the field id from the field you create|
 |`JIRA_CUSTOM_FIELD_EPIC_LINK`| |customfield_10013|This is the default|
 |`JIRA_CUSTOM_FIELD_EPIC_NAME`| |customfield_10010|This is the default|
+|`JIRA_CLOSED_TRANSITION`| |Closed|Default is `Closed` but should map to your final workflow status|
 |`GITHUB_ORGANIZATION`||Acme Corp|
 |`GITHUB_AUTH_METHOD`|[see client docs](https://github.com/KnpLabs/php-github-api/blob/master/doc/security.md)|http_token|
 |`GITHUB_USERNAME`|[see client docs](https://github.com/KnpLabs/php-github-api/blob/master/doc/security.md)|Oauth Token Value|
